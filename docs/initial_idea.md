@@ -14,6 +14,48 @@ Dieses Dokument dient als **Context-Anchor** für zukünftige Sessions. Es besch
 **Ziel:** Maximale Parallelisierung der Entwicklungsarbeit. Ein System soll geschaffen werden, das autonom im Hintergrund an Aufgaben arbeitet (24/7), während der User die strategische Führung behält.
 **Kern-Metrik:** Reduktion der "Idle Time" des Users und Erhöhung des Durchsatzes durch asynchrone, autonome Agenten.
 
+-----
+
+## Glossar: Die RGB-Agenten
+
+Die Farbbezeichnungen **Rot**, **Grün** und **Blau** haben sich als zentrale Terminologie für die Architektur etabliert. Ursprünglich waren es nur zufällig gewählte Farben im Architektur-Diagramm, aber sie haben sich als intuitive Metapher bewährt:
+
+| Agent | Farbe | Rolle | Analogie |
+|-------|-------|-------|----------|
+| **Red Agent** | 🔴 | Worker/Executor | Der Handwerker - führt konkrete Coding-Aufgaben aus |
+| **Green Agent** | 🟢 | Project Manager | Der Bauleiter - plant iterativ, delegiert an Red, prüft Ergebnisse |
+| **Blue Agent** | 🔵 | Executive/Interface | Der Auftraggeber - definiert Epics, behält Überblick |
+| **Spawning Engine** | ⚙️ | Infrastruktur | Der Dispatcher - spawnt K8s Jobs, einziger persistenter Prozess |
+
+### Warum RGB?
+
+- **Intuitiv:** Rot = Action/Execution, Grün = Go/Approval, Blau = Overview/Strategic
+- **Hierarchisch:** Blue → Green → Red (Top-Down Delegation)
+- **Ephemer:** Alle Agenten (außer Spawning Engine) sind kurzlebige K8s Jobs
+- **Einprägsam:** Einfache Kommunikation ("Der Red Agent hat den PR erstellt")
+
+### Verantwortlichkeiten
+
+```
+🔵 Blue Agent (Zukunft)
+│   "Implementiere Feature X für Projekt Y"
+│
+▼
+🟢 Green Agent
+│   - Analysiert Repository
+│   - Erstellt/aktualisiert .ai/plan.md
+│   - Spawnt Red Tasks (Implement, Test, Review)
+│   - Entscheidet wann PR erstellt wird
+│
+▼
+🔴 Red Agent
+    - Führt EINEN konkreten Task aus
+    - Pusht Branch (KEIN PR - das entscheidet Green)
+    - Meldet Erfolg/Misserfolg zurück
+```
+
+-----
+
 ## 2\. Das 3-Schichten-Modell (The Layered Architecture)
 
 Wir unterteilen das System in drei logische Ebenen mit strikter Aufgabentrennung:
@@ -208,21 +250,78 @@ CREATE TABLE tasks (
     started_at      TIMESTAMP,
     completed_at    TIMESTAMP,
 
-    -- Ergebnis (JSON für Flexibilität)
+    -- Strukturiertes Ergebnis (aus JSONL "type":"result" extrahiert)
     result          JSONB,
-    -- Beispiel: {"success": true, "commit_sha": "abc123", "branch": "feature/xyz"}
-    -- Beispiel: {"success": false, "error": "Tests failed", "logs": "..."}
+    -- Beispiel: {
+    --   "success": true,
+    --   "summary": "## ✅ ERFOLG - NextJS App Setup...",
+    --   "pr_url": "https://github.com/.../pull/2",
+    --   "commit_sha": "5a6d5ca",
+    --   "duration_ms": 293924,
+    --   "cost_usd": 0.29,
+    --   "num_turns": 31
+    -- }
 
     -- Welcher K8s Job hat das bearbeitet?
     worker_pod      VARCHAR(255)
 );
 
+-- Volle Agent-Logs (JSONL) für Diagnose und Fehleranalyse
+-- Speicherplatz ist günstig, volle Transparenz ist wertvoll
+CREATE TABLE task_logs (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    task_id         UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+
+    -- Komplettes JSONL vom Claude Code CLI (--output-format stream-json)
+    -- Enthält alle Tool-Aufrufe, Ergebnisse, Fehler, etc.
+    jsonl_content   TEXT NOT NULL,
+
+    -- Metadaten für schnellen Zugriff
+    log_size_bytes  INTEGER,
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+
 -- Index für die Spawning Engine (häufigste Query)
 CREATE INDEX idx_tasks_pending ON tasks(addressee, status) WHERE status = 'pending';
 CREATE INDEX idx_tasks_running ON tasks(addressee) WHERE status = 'running';
+CREATE INDEX idx_task_logs_task_id ON task_logs(task_id);
 ```
 
 **Kernprinzip:** Das Datenmodell ist absichtlich minimal. Keine Abhängigkeiten, keine Prioritäten, kein "Blocked"-Status. Die Intelligenz liegt in den Agenten, nicht in der Queue.
+
+### B.2 Log-Verarbeitung und Green Layer Integration
+
+Die Agent-Logs werden in zwei Stufen verarbeitet:
+
+1. **Spawning Engine** extrahiert aus dem JSONL-Stream:
+   - Die letzte Zeile mit `"type":"result"` enthält Zusammenfassung, Kosten, Dauer
+   - Speichert strukturiertes `result` in `tasks` Tabelle
+   - Speichert volles JSONL in `task_logs` für Diagnose
+
+2. **Green Layer** (Project Manager) erhält nur das strukturierte `result`:
+   - Token-effizient (~500 Tokens statt ~50k)
+   - Entscheidet: Weiter mit Plan oder Retry?
+   - Bei Fehler: Kann neuen Red Job spawnen für Fehleranalyse
+
+```
+┌─────────────────┐     JSONL Stream      ┌─────────────────┐
+│   Red Agent     │ ──────────────────────▶│ Spawning Engine │
+│   (K8s Job)     │                        │   (Singleton)   │
+└─────────────────┘                        └────────┬────────┘
+                                                    │
+                     ┌──────────────────────────────┼──────────────────────────────┐
+                     │                              │                              │
+                     ▼                              ▼                              ▼
+              ┌─────────────┐              ┌───────────────┐              ┌───────────────┐
+              │ task_logs   │              │    tasks      │              │  Green Layer  │
+              │ (full JSONL)│              │   (result)    │◀─────────────│ (nur summary) │
+              │  ~100KB     │              │   ~1KB        │              │               │
+              └─────────────┘              └───────────────┘              └───────┬───────┘
+                     ▲                                                            │
+                     │                     Bei Fehler: Neuer Red Job              │
+                     └────────────────────────────────────────────────────────────┘
+                                          "Analysiere Log X"
+```
 
 ### C. Tooling: Claude Code CLI (Headless)
 

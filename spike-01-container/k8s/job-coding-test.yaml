@@ -1,0 +1,184 @@
+# Coding Swarm - Red Agent Coding Test
+#
+# TEST: Erstellt eine minimale NextJS App, pusht und öffnet einen Pull Request
+#
+# PREREQUISITES:
+# 1. Namespace und Secrets müssen existieren (siehe job.yaml)
+# 2. Das Repo muss existieren und der GITHUB_TOKEN muss Push-Rechte haben
+#
+# USAGE:
+#   kubectl apply -f job-coding-test.yaml
+#   kubectl logs -f -n coding-swarm job/red-agent-coding-test
+#
+# CLEANUP (falls Job schon existiert):
+#   kubectl delete job red-agent-coding-test -n coding-swarm
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: red-agent-coding-test
+  namespace: coding-swarm
+  labels:
+    app.kubernetes.io/name: red-agent
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: coding-swarm
+    test: coding-test
+spec:
+  ttlSecondsAfterFinished: 600  # Cleanup after 10 min (longer for review)
+  backoffLimit: 0                # No retry on failure
+  template:
+    metadata:
+      labels:
+        app: red-agent
+        type: coding-test
+    spec:
+      restartPolicy: Never
+
+      # Security Context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      containers:
+        - name: claude-worker
+          image: tobiaswaggoner/coding-swarm-agent:latest
+          imagePullPolicy: Always
+
+          # Security Context (container level)
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+          env:
+            # ===========================================
+            # SECRETS (from K8s Secret)
+            # ===========================================
+            - name: CLAUDE_CODE_OAUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: coding-swarm-secrets
+                  key: CLAUDE_CODE_OAUTH_TOKEN
+
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: coding-swarm-secrets
+                  key: GITHUB_TOKEN
+
+            # ===========================================
+            # Git User Config
+            # ===========================================
+            - name: GIT_USER_EMAIL
+              value: "ai-agent@coding-swarm.dev"
+            - name: GIT_USER_NAME
+              value: "Coding Swarm Agent"
+
+            # ===========================================
+            # Repository Configuration
+            # ===========================================
+            - name: REPO_URL
+              value: "https://github.com/tobiaswaggoner/codeswarm-playground"
+
+            # ===========================================
+            # Output Format (optional: text, json, stream-json)
+            # stream-json ermöglicht Echtzeit-Monitoring via kubectl logs
+            # ===========================================
+            # - name: OUTPUT_FORMAT
+            #   value: "stream-json"
+
+            # ===========================================
+            # Task Prompt - NextJS App erstellen + PR
+            # ===========================================
+            - name: TASK_PROMPT
+              value: |
+                KONTEXT: Du läufst im HEADLESS-MODUS ohne Benutzerinteraktion.
+                Triff alle Entscheidungen selbstständig. Rückfragen sind NICHT möglich.
+
+                ============================================================
+                SYSTEM-REGELN (IMMER BEFOLGEN):
+                ============================================================
+
+                1. GIT OPERATIONS - Verwende IMMER das GitHub CLI (gh):
+                   - Push: gh repo sync (oder git push mit vorher gesetzten credentials)
+                   - Pull Request: gh pr create
+                   - NIEMALS interaktive git-Befehle verwenden
+
+                2. BRANCH-NAMING:
+                   - Prüfe existierende Branches: git branch -a
+                   - Erstelle einen EINZIGARTIGEN Branchnamen basierend auf der Aufgabe
+                   - Format: feature/<kurze-beschreibung>-<timestamp-oder-random>
+                   - Beispiel: feature/nextjs-setup-1701234567
+
+                3. VERZEICHNIS-STRUKTUR:
+                   - Erstelle neue Apps IMMER in Unterverzeichnissen (z.B. apps/<name>)
+                   - NIEMALS direkt im Root-Verzeichnis arbeiten (kann bestehende Dateien überschreiben)
+
+                4. NON-INTERACTIVE TOOLS:
+                   - npx create-next-app: IMMER mit --yes Flag
+                   - npm: IMMER mit --yes oder ohne Prompts
+                   - Alle CLI-Tools: Suche nach non-interactive/silent Flags
+
+                5. VALIDIERUNG VOR COMMIT:
+                   - Lint und Build MÜSSEN erfolgreich sein
+                   - Bei Fehlern: beheben und erneut validieren
+
+                ============================================================
+                AUFGABE:
+                ============================================================
+
+                Erstelle eine minimale NextJS App im Verzeichnis apps/first-test:
+
+                1. BRANCH ERSTELLEN:
+                   - Prüfe existierende Branches: git branch -a
+                   - Erstelle einzigartigen Branch: git checkout -b feature/nextjs-first-test-$(date +%s)
+
+                2. VERZEICHNIS ERSTELLEN:
+                   mkdir -p apps/first-test
+
+                3. NEXTJS APP ERSTELLEN (im Unterverzeichnis):
+                   cd apps/first-test
+                   npx create-next-app@latest . --yes --typescript --eslint --app --src-dir --no-tailwind --import-alias "@/*" --use-npm
+
+                4. LANDING PAGE ANPASSEN (apps/first-test/src/app/page.tsx):
+                   - Titel: "Coding Swarm Playground"
+                   - Kurzer Beschreibungstext
+
+                5. VALIDIEREN:
+                   cd apps/first-test
+                   npm run lint
+                   npm run build
+
+                6. COMMIT:
+                   cd /workspace
+                   git add -A
+                   git commit -m "feat(apps/first-test): initial NextJS app setup"
+
+                7. PUSH UND PR (mit gh CLI):
+                   git push -u origin HEAD
+                   gh pr create --fill --body "Automatisch generiert durch Coding Swarm Agent.
+
+                   ## Änderungen
+                   - NextJS App in apps/first-test
+                   - TypeScript + App Router + ESLint
+                   - Build erfolgreich validiert
+
+                   Generiert von Coding Swarm Red Agent"
+
+                ============================================================
+                ABSCHLUSS:
+                ============================================================
+                Gib eine kurze Zusammenfassung:
+                - ERFOLG: Was wurde erstellt? PR-Link?
+                - MISSERFOLG: Welcher Schritt ist fehlgeschlagen und warum?
+
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "2Gi"      # Mehr für npm install/build
+              cpu: "1000m"

@@ -108,6 +108,11 @@ if [ -n "$REPO_URL" ]; then
     git clone "$CLONE_URL" /workspace
     cd /workspace
 
+    # SECURITY: Remote URL ohne Token setzen (verhindert Token-Leaks in npm/package.json)
+    # Credentials werden über ~/.git-credentials verwendet
+    git remote set-url origin "$REPO_URL"
+    echo "  [OK] Remote URL cleaned (token removed)"
+
     # Checkout branch if specified
     if [ -n "$BRANCH" ]; then
         echo "  Checking out branch: $BRANCH"
@@ -131,10 +136,24 @@ echo "=========================================="
 
 TASK_PROMPT="${TASK_PROMPT:-Antworte nur mit einem kurzen Satz: Wer bist du und welches Modell verwendest du?}"
 
+# Output Format: text (default), json, oder stream-json (für Echtzeit-Monitoring)
+OUTPUT_FORMAT="${OUTPUT_FORMAT:-stream-json}"
+
 echo "Prompt: $TASK_PROMPT"
+echo "Output Format: $OUTPUT_FORMAT"
 echo ""
 
-claude -p "$TASK_PROMPT" --dangerously-skip-permissions
+# stream-json benötigt --verbose Flag
+if [ "$OUTPUT_FORMAT" = "stream-json" ]; then
+    claude -p "$TASK_PROMPT" \
+        --dangerously-skip-permissions \
+        --output-format "$OUTPUT_FORMAT" \
+        --verbose
+else
+    claude -p "$TASK_PROMPT" \
+        --dangerously-skip-permissions \
+        --output-format "$OUTPUT_FORMAT"
+fi
 
 echo ""
 echo "=========================================="

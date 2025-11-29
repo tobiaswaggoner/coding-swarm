@@ -104,6 +104,7 @@ docker run \
 | `BRANCH` | Nein | Auszucheckender Branch (Standard: main) |
 | `GIT_USER_EMAIL` | Nein | Committer E-Mail |
 | `GIT_USER_NAME` | Nein | Committer Name |
+| `OUTPUT_FORMAT` | Nein | `text`, `json`, oder `stream-json` (Standard: stream-json) |
 
 ## Zentrale Design-Entscheidungen
 
