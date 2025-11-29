@@ -1,0 +1,101 @@
+# Coding Swarm - Red Agent Job
+#
+# PREREQUISITES:
+# 1. Create the namespace: kubectl create namespace coding-swarm
+# 2. Deploy secrets BEFORE applying this job:
+#    kubectl create secret generic coding-swarm-secrets \
+#      --namespace=coding-swarm \
+#      --from-literal=CLAUDE_CODE_OAUTH_TOKEN='<your-claude-oauth-token>' \
+#      --from-literal=GITHUB_TOKEN='<your-github-pat>'
+#
+# USAGE:
+#   kubectl apply -f job.yaml
+#   kubectl logs -f -n coding-swarm job/red-agent-spike
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: coding-swarm
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: red-agent-spike
+  namespace: coding-swarm
+  labels:
+    app.kubernetes.io/name: red-agent
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: coding-swarm
+spec:
+  ttlSecondsAfterFinished: 300  # Cleanup after 5 min
+  backoffLimit: 0                # No retry on failure
+  template:
+    metadata:
+      labels:
+        app: red-agent
+        type: spike
+    spec:
+      restartPolicy: Never
+
+      # Security Context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      containers:
+        - name: claude-worker
+          image: tobiaswaggoner/coding-swarm-agent:latest
+          imagePullPolicy: Always
+
+          # Security Context (container level)
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # Claude needs to write temp files
+            capabilities:
+              drop:
+                - ALL
+
+          env:
+            # ===========================================
+            # REQUIRED SECRETS (from K8s Secret)
+            # ===========================================
+            - name: CLAUDE_CODE_OAUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: coding-swarm-secrets
+                  key: CLAUDE_CODE_OAUTH_TOKEN
+
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: coding-swarm-secrets
+                  key: GITHUB_TOKEN
+
+            # ===========================================
+            # OPTIONAL: Git User Config
+            # ===========================================
+            # - name: GIT_USER_EMAIL
+            #   value: "ai-agent@your-domain.com"
+            # - name: GIT_USER_NAME
+            #   value: "Coding Swarm Agent"
+
+            # ===========================================
+            # Repository Configuration
+            # ===========================================
+            - name: REPO_URL
+              value: "https://github.com/tobiaswaggoner/email-sync"
+
+            # ===========================================
+            # Task Prompt
+            # ===========================================
+            - name: TASK_PROMPT
+              value: "Liste alle Dateien im Repository auf und beschreibe kurz was dieses Projekt macht."
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"      # Konservativ für 8GB Cluster
+              cpu: "500m"
