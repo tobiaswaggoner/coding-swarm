@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:25-trixie
 
 WORKDIR /app
 
@@ -9,8 +9,7 @@ RUN npm ci --only=production || npm install --only=production
 # Copy built files
 COPY dist/ ./dist/
 
-# Non-root user for security
-RUN adduser -D -u 1000 engine
-USER engine
+# Use existing node user (UID 1000) for security
+USER node
 
 CMD ["node", "dist/index.js"]
