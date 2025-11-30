@@ -1,7 +1,6 @@
 #!/bin/bash
 # Create a simple test task for the spawning engine
 
-
 PROMPT="${1:-Say hello and tell me what 2+2 equals. Keep your response brief.}"
 ADDRESSEE="${2:-red-agent-test}"
 
