@@ -12,15 +12,23 @@ Maximale Parallelisierung der Entwicklungsarbeit durch autonome AI-Agenten, die 
 
 | Agent | Rolle | Beschreibung |
 |-------|-------|--------------|
-| 🔴 **Red** | Worker | Führt EINEN Task aus, pusht Branch, meldet Ergebnis |
-| 🟢 **Green** | Project Manager | Plant iterativ, delegiert an Red, entscheidet über PRs |
-| 🔵 **Blue** | Executive | UI für Epics, Monitoring, manuelle Eingriffe |
-| ⚙️ **Engine** | Dispatcher | Einziger persistenter Prozess, spawnt K8s Jobs |
+| 🔴 **Red** | Worker | Führt EINEN Task aus, pusht Branch, meldet Ergebnis. **MERGED NIE!** |
+| 🟢 **Green** | Project Manager | Plant iterativ, erstellt Tasks für Red, führt selbst **KEINE Git-Ops aus** |
+| 🔵 **Blue** | Executive | UI für Epics, Monitoring, manuelle Eingriffe, PR-Review |
+| ⚙️ **Engine** | Dispatcher | Einziger persistenter Prozess, spawnt K8s Jobs, triggert Green bei Completion |
 
 ```
-🔵 Blue ──Epic──▶ 🟢 Green ──Task──▶ 🔴 Red
-                      │◀────Result────────┘
-                      └── Iteriert bis fertig
+🔵 Blue ──Epic──▶ 🟢 Green ──CODE-Task──▶ 🔴 Red
+                      │                      │
+                      │◀──Engine-Trigger─────┘
+                      │
+                      ├── Analysiert Result
+                      │
+                      ├──MERGE-Task──▶ 🔴 Red (separater Merge)
+                      │                   │
+                      │◀──Engine-Trigger──┘
+                      │
+                      └── Nächster Schritt oder PR-Task
 ```
 
 ---
@@ -76,12 +84,13 @@ CREATE INDEX idx_tasks_running ON tasks(addressee) WHERE status = 'running';
 
 Diese Regeln gelten für alle Red Agent Tasks:
 
-1. **GH CLI verwenden** - Immer `gh` für Git-Operationen (Push, PR)
-2. **Einzigartige Branches** - Format: `feature/<beschreibung>-$(date +%s)`
+1. **GH CLI verwenden** - Immer `gh` für Git-Operationen (Push, ggf. PR)
+2. **Einzigartige Branches** - Format: `feature/step-<id>-$(date +%s)`
 3. **Unterverzeichnisse** - Neue Apps nie im Root, immer in Subfoldern
 4. **Non-Interactive** - Alle CLI-Tools mit `--yes` oder Silent-Flags
 5. **Validierung** - Lint + Build müssen vor Commit erfolgreich sein
-6. **Kein PR** - Red pusht nur Branch, Green entscheidet über PR
+6. **NIEMALS mergen** - Red pusht nur seinen Branch, Merge ist separater Task
+7. **Task-Typen beachten** - CODE, MERGE, REVIEW, FIX, PR, VALIDATE haben unterschiedliche Aufgaben
 
 ---
 
@@ -119,7 +128,24 @@ Diese Regeln gelten für alle Red Agent Tasks:
 
 ### 🔄 Nächster Schritt: Green Agent (Project Manager)
 
-**Ziel:** Ephemerer K8s Job, der `.ai/plan.md` pflegt und Red-Tasks iterativ spawnt
+**Ziel:** Ephemerer K8s Job, der event-driven getriggert wird und Red-Tasks orchestriert
+
+**Design-Prinzipien:**
+- **Event-driven, kein Polling** - Green wird von Engine bei Task-Completion getriggert
+- **Ephemer** - Green plant, erstellt Task, stirbt
+- **Keine Git-Ops** - Auch Merge und PR-Erstellung laufen über Red-Tasks
+- **Task-Typen:** CODE → MERGE → (nächster CODE) → ... → PR
+
+**Workflow pro Schritt:**
+```
+Green erstellt CODE-Task → Red implementiert → Engine triggert Green
+                                                      ↓
+Green erstellt MERGE-Task → Red merged → Engine triggert Green
+                                                      ↓
+                                          Green erstellt nächsten CODE-Task
+```
+
+**Detaillierte Dokumentation:** Siehe `docs/green-layer-design.md` und `docs/scenario.md`
 
 ### Später: Blue UI (Executive Dashboard)
 
@@ -134,3 +160,9 @@ Diese Regeln gelten für alle Red Agent Tasks:
 | OAuth statt API-Key | Subscription-Billing, Kostenkontrolle |
 | Ephemere Agents | Keine Zombie-Prozesse, sauberer State |
 | Ein Task = Ein Branch | Isolation, keine Merge-Konflikte |
+| Merge als separater Task | Review-Möglichkeit, Konflikt-Isolation, Kontrolle |
+| Event-driven statt Polling | Keine Idle-Kosten, saubere Architektur |
+| PR via Red-Task | Green führt keine Git-Ops aus, konsistentes Modell |
+| Engine triggert Green | Zentraler Dispatcher, keine verlorenen Events |
+| `.ai/` Verzeichnis | Plan + Kontext, Green darf committen |
+| Step-Branches löschen | Nach erfolgreichem Merge automatisch entfernen |

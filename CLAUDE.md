@@ -17,26 +17,35 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
 ┌─────────────────────────────────────────────────────────────┐
 │ Blue Layer (Zukunft) - Executive UI (Next.js)               │
 │ User reicht Epics ein → Schreibt in PostgreSQL              │
+│ PR-Review → Änderungswünsche → Triggert Green               │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ Spawning Engine - Der EINZIGE persistente Prozess           │
 │ Pollt tasks-Tabelle → Spawnt K8s Jobs → Trackt Status       │
+│ Triggert Green bei Task-Completion (Event-driven!)          │
 │ Verwaltet Concurrency via "addressee" (1 Job pro Addressee) │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ Green Layer (Zukunft) - Project Manager (Ephemerer K8s Job) │
-│ Pflegt .ai/plan.md → Spawnt Red-Tasks iterativ              │
+│ Green Layer (Nächster Schritt) - Project Manager            │
+│ Event-driven: Wird bei Task-Completion getriggert           │
+│ Plant → Erstellt Task → Stirbt (kein Polling!)              │
+│ Führt selbst KEINE Git-Ops aus (alles via Red-Tasks)        │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ Red Layer (Aktueller Spike) - Worker Agent (Ephemerer K8s)  │
-│ Clont Repo → Führt claude -p aus → Committed/pusht Änderungen│
+│ Red Layer (Implementiert) - Worker Agent (Ephemerer K8s)    │
+│ Task-Typen: CODE, MERGE, REVIEW, FIX, PR, VALIDATE          │
+│ MERGED NIE direkt - Merge ist separater Task!               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Kernprinzip:** Alle Agents sind ephemere K8s Jobs. Nur die Spawning Engine ist persistent.
+**Kernprinzipien:**
+- Alle Agents sind ephemere K8s Jobs. Nur die Spawning Engine ist persistent.
+- Green führt keine Git-Operationen aus - **außer** für `.ai/plan.md` (Plan-Updates)
+- Red merged nie selbstständig - Merge ist ein separater Task für Review-Möglichkeit
+- Das `.ai/` Verzeichnis ist der Projekt-Kontext (Plan, später Specs, etc.)
 
 ## Verzeichnisstruktur
 
@@ -49,7 +58,10 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
   - `k8s/` - Kubernetes-Manifeste (deployment.yaml, rbac.yaml)
   - `Dockerfile` - Container-Image für K8s Deployment
 - `scripts/` - Hilfs-Skripte (Test-Task erstellen, etc.)
-- `docs/` - Architektur-Dokumentation (`initial_idea.md` ist das primäre Design-Dokument)
+- `docs/` - Architektur-Dokumentation:
+  - `initial_idea.md` - Übersicht und Vision
+  - `green-layer-design.md` - Technisches Design für Green Agent
+  - `scenario.md` - Detailliertes Durchspiel-Szenario (Snake Clone)
 
 ## Häufige Befehle
 
@@ -125,6 +137,8 @@ docker run \
 3. **Non-root Ausführung** - Container läuft als `aiworker` (UID 1000) für K8s SecurityContext-Kompatibilität
 4. **Ein Task = Ein Branch** - Isolation verhindert Merge-Konflikte bei paralleler Arbeit
 5. **Kein Conversation-Modus** - Agents führen einmal aus und terminieren (Erfolg oder Fehler, kein Hin-und-Her)
+6. **Red merged NIE** - Merge ist immer ein separater Task (für Review und Konflikt-Isolation)
+7. **Green führt keine Git-Ops aus** - Außer für `.ai/plan.md` (Plan-Updates darf Green committen)
 
 ## Agent Umgebungsvariablen
 
@@ -146,3 +160,9 @@ docker run \
 - **Iterative Planung** - Green Agent plant nur nächsten Schritt, nicht ganzes Epic im Voraus
 - **Quality Gates als Tasks** - Review/Test sind normale Tasks mit anderen Prompts
 - **Pläne in Git** - `.ai/plan.md` im Repo gespeichert, nicht in Datenbank (Single Source of Truth)
+- **`.ai/` Verzeichnis** - Enthält Plan + Kontext, von Green gepflegt
+- **Step-Branches löschen** - Nach erfolgreichem Merge automatisch entfernen
+- **Event-driven statt Polling** - Green wird bei Task-Completion getriggert, keine Idle-Kosten
+- **Merge als separater Task** - Ermöglicht Review vor Integration, Konflikt-Isolation
+- **Task-Typen** - CODE, MERGE, REVIEW, FIX, PR, VALIDATE für klare Trennung der Verantwortlichkeiten
+- **PR via Red-Task** - Konsistentes Modell, Green führt selbst keine Git-Ops aus
