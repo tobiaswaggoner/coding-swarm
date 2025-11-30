@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spawning-engine
+  namespace: coding-swarm
+  labels:
+    app: spawning-engine
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # No overlap during updates
+  selector:
+    matchLabels:
+      app: spawning-engine
+  template:
+    metadata:
+      labels:
+        app: spawning-engine
+    spec:
+      serviceAccountName: spawning-engine
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+      containers:
+        - name: engine
+          image: tobiaswaggoner/spawning-engine:latest
+          imagePullPolicy: Always
+          env:
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: spawning-engine-secrets
+                  key: SUPABASE_URL
+            - name: SUPABASE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: spawning-engine-secrets
+                  key: SUPABASE_KEY
+            - name: POLL_INTERVAL_MS
+              value: "5000"
+            - name: JOB_TIMEOUT_MINUTES
+              value: "30"
+            - name: JOB_NAMESPACE
+              value: "coding-swarm"
+            - name: MAX_PARALLEL_JOBS
+              value: "10"
+            - name: LOG_LEVEL
+              value: "info"
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            exec:
+              command:
+                - node
+                - -e
+                - "process.exit(0)"
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            exec:
+              command:
+                - node
+                - -e
+                - "process.exit(0)"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      restartPolicy: Always
