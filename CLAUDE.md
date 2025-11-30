@@ -41,9 +41,14 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
 ## Verzeichnisstruktur
 
 - `base-image/` - Gemeinsames Docker-Base-Image (Node 25, Python 3.13, .NET 9, Claude CLI, gh CLI)
-- `spike-01-container/` - Red Agent Implementierung (aktueller Fokus)
+- `spike-01-container/` - Red Agent Implementierung
   - `entrypoint.sh` - Agent-Lifecycle: Secrets validieren → Repo clonen → Claude CLI ausführen
   - `k8s/` - Kubernetes-Manifeste (job.yaml, namespace.yml)
+- `spawning-engine/` - Spawning Engine (TypeScript, aktueller Fokus)
+  - `src/` - TypeScript Source Code (index.ts, config.ts, db/, k8s/, engine/)
+  - `k8s/` - Kubernetes-Manifeste (deployment.yaml, rbac.yaml)
+  - `Dockerfile` - Container-Image für K8s Deployment
+- `scripts/` - Hilfs-Skripte (Test-Task erstellen, etc.)
 - `docs/` - Architektur-Dokumentation (`initial_idea.md` ist das primäre Design-Dokument)
 
 ## Häufige Befehle
@@ -58,18 +63,46 @@ docker push tobiaswaggoner/coding-swarm-base:latest
 # Agent Image
 docker build -t tobiaswaggoner/coding-swarm-agent:latest spike-01-container/
 docker push tobiaswaggoner/coding-swarm-agent:latest
+
+# Spawning Engine Image
+docker build -t tobiaswaggoner/spawning-engine:latest spawning-engine/
+docker push tobiaswaggoner/spawning-engine:latest
+```
+
+### Spawning Engine lokal starten
+
+```bash
+cd spawning-engine
+SUPABASE_URL="https://xxx.supabase.co" \
+SUPABASE_KEY="eyJ..." \
+LOG_LEVEL="debug" \
+npx tsx src/index.ts
 ```
 
 ### Kubernetes Deployment
 
 ```bash
-# Initiales Setup
+# Initiales Setup - Namespace erstellen
 kubectl create namespace coding-swarm
+
+# Secret für Worker Agents (Red Agents)
 kubectl create secret generic coding-swarm-secrets -n coding-swarm \
   --from-literal=CLAUDE_CODE_OAUTH_TOKEN='<token>' \
   --from-literal=GITHUB_TOKEN='<token>'
 
-# Deployen und überwachen
+# Secret für Spawning Engine (Supabase-Zugang)
+kubectl create secret generic spawning-engine-secrets -n coding-swarm \
+  --from-literal=SUPABASE_URL='https://xxx.supabase.co' \
+  --from-literal=SUPABASE_KEY='eyJ...'
+
+# RBAC für Spawning Engine
+kubectl apply -f spawning-engine/k8s/rbac.yaml
+
+# Spawning Engine deployen
+kubectl apply -f spawning-engine/k8s/deployment.yaml
+kubectl logs -f -n coding-swarm deployment/spawning-engine
+
+# Red Agent Job manuell starten (zum Testen)
 kubectl apply -f spike-01-container/k8s/job.yaml
 kubectl logs -f -n coding-swarm job/red-agent-spike
 ```

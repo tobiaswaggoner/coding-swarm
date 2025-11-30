@@ -94,15 +94,20 @@ Diese Regeln gelten für alle Red Agent Tasks:
 - JSONL Streaming Output (`--output-format stream-json --verbose`)
 - Erfolgreicher Test: NextJS App erstellt, Branch gepusht, PR erstellt
 
-### 🔄 Nächster Schritt: Spawning Engine
+### ✅ Erledigt: Spawning Engine
 
-**Ziel:** Engine pollt Supabase, spawnt K8s Jobs, speichert Results
+**Features implementiert:**
+- ✅ Poll-Loop: Pending Tasks abrufen
+- ✅ Adressat-Check: Läuft schon ein Job? → Sequenzierung
+- ✅ K8s Job spawnen mit Task-ID
+- ✅ Job-Completion/-Failure Detection
+- ✅ JSONL-Logs parsen, Result + Logs speichern
+- ✅ Timeout-Handling (Job löschen, Task als failed markieren)
+- ✅ Graceful Shutdown (SIGTERM)
+- ✅ Backpressure via `MAX_PARALLEL_JOBS`
+- ✅ Singleton-Lock (File-basiert)
 
-**Infrastruktur:**
-- Supabase (externe PostgreSQL) - ermöglicht Multi-Cluster Deployment
-- Credentials via K8s Secrets: `SUPABASE_URL`, `SUPABASE_KEY`
-
-**Ablauf:**
+**Architektur:**
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │   Supabase   │◀───▶│   Spawner    │────▶│   K8s Job    │
@@ -110,14 +115,13 @@ Diese Regeln gelten für alle Red Agent Tasks:
 └──────────────┘     └──────────────┘     └──────────────┘
 ```
 
-**Features:**
-1. Poll-Loop: Pending Tasks abrufen
-2. Adressat-Check: Läuft schon ein Job?
-3. K8s Job spawnen mit Task-ID
-4. Job-Completion erkennen
-5. JSONL-Logs parsen, Result + Logs speichern
+**Verzeichnis:** `spawning-engine/`
 
-### Später: Green Agent, Blue UI
+### 🔄 Nächster Schritt: Green Agent (Project Manager)
+
+**Ziel:** Ephemerer K8s Job, der `.ai/plan.md` pflegt und Red-Tasks iterativ spawnt
+
+### Später: Blue UI (Executive Dashboard)
 
 ---
 

@@ -29,23 +29,24 @@ spawning-engine/
 ├── Dockerfile
 ├── package.json
 ├── tsconfig.json
+├── .gitignore
 ├── src/
 │   ├── index.ts              # Entry point, main loop
 │   ├── config.ts             # Environment variables, defaults
+│   ├── logger.ts             # Structured logging
 │   ├── db/
 │   │   └── supabase.ts       # Supabase client, task queries
 │   ├── k8s/
 │   │   ├── client.ts         # K8s client setup (in-cluster)
 │   │   ├── jobs.ts           # Job CRUD operations
-│   │   └── logs.ts           # Log extraction
+│   │   └── logs.ts           # Log extraction + JSONL parsing
 │   └── engine/
-│       ├── poller.ts         # Poll loop logic
 │       ├── spawner.ts        # Job spawning logic
-│       └── reaper.ts         # Timeout/completion handling
+│       ├── reaper.ts         # Timeout/completion handling
+│       └── lock.ts           # File-based singleton lock
 └── k8s/
     ├── deployment.yaml       # Singleton deployment (replicas: 1)
-    ├── serviceaccount.yaml   # SA with job permissions
-    └── rbac.yaml             # Role + RoleBinding
+    └── rbac.yaml             # ServiceAccount + Role + RoleBinding
 ```
 
 ### 2. Konfiguration (Environment Variables)
@@ -53,11 +54,12 @@ spawning-engine/
 | Variable | Default | Beschreibung |
 |----------|---------|--------------|
 | `SUPABASE_URL` | required | Supabase REST API URL |
-| `SUPABASE_KEY` | required | Supabase service_role key |
+| `SUPABASE_KEY` | required | Supabase anon/service_role key |
 | `POLL_INTERVAL_MS` | 5000 | Polling-Intervall in ms |
 | `JOB_TIMEOUT_MINUTES` | 30 | Max. Laufzeit pro Job |
 | `JOB_NAMESPACE` | coding-swarm | K8s Namespace für Jobs |
 | `JOB_IMAGE` | tobiaswaggoner/coding-swarm-agent:latest | Agent Image |
+| `MAX_PARALLEL_JOBS` | 10 | Max. gleichzeitige Jobs (Backpressure) |
 | `LOG_LEVEL` | info | debug, info, warn, error |
 
 ### 3. Singleton-Garantie
@@ -252,35 +254,35 @@ roleRef:
 
 ## Implementierungs-Reihenfolge
 
-### Phase 1: Grundgerüst
-1. [ ] Projekt-Setup (package.json, tsconfig.json, Dockerfile)
-2. [ ] Config-Modul mit Environment Variables
-3. [ ] Supabase Client + Basis-Queries
-4. [ ] Main Loop Skeleton (nur Logging)
+### Phase 1: Grundgerüst ✅
+1. [x] Projekt-Setup (package.json, tsconfig.json, Dockerfile)
+2. [x] Config-Modul mit Environment Variables
+3. [x] Supabase Client + Basis-Queries
+4. [x] Main Loop Skeleton (nur Logging)
 
-### Phase 2: K8s Integration
-5. [ ] K8s Client Setup (in-cluster config)
-6. [ ] RBAC Manifeste (ServiceAccount, Role, RoleBinding)
-7. [ ] Job Creation Logic
-8. [ ] Job Status Abfrage
+### Phase 2: K8s Integration ✅
+5. [x] K8s Client Setup (in-cluster config)
+6. [x] RBAC Manifeste (ServiceAccount, Role, RoleBinding)
+7. [x] Job Creation Logic
+8. [x] Job Status Abfrage
 
-### Phase 3: Reaping
-9. [ ] Job Completion Detection
-10. [ ] Log Extraction aus Pods
-11. [ ] JSONL Parsing für Result
-12. [ ] Task Update (completed/failed)
+### Phase 3: Reaping ✅
+9. [x] Job Completion Detection
+10. [x] Log Extraction aus Pods
+11. [x] JSONL Parsing für Result
+12. [x] Task Update (completed/failed)
 
-### Phase 4: Timeout & Robustheit
-13. [ ] Timeout-Check Implementation
-14. [ ] Job Deletion bei Timeout
-15. [ ] Graceful Shutdown (SIGTERM handling)
-16. [ ] Error Recovery (DB reconnect, K8s API errors)
+### Phase 4: Timeout & Robustheit ✅
+13. [x] Timeout-Check Implementation
+14. [x] Job Deletion bei Timeout
+15. [x] Graceful Shutdown (SIGTERM handling)
+16. [x] Error Recovery (DB reconnect, K8s API errors)
 
-### Phase 5: Deployment
-17. [ ] Dockerfile für Spawning Engine
-18. [ ] K8s Deployment Manifest
-19. [ ] Secret-Erweiterung (SUPABASE_URL, SUPABASE_KEY)
-20. [ ] End-to-End Test
+### Phase 5: Deployment ✅
+17. [x] Dockerfile für Spawning Engine
+18. [x] K8s Deployment Manifest
+19. [x] Secret-Erweiterung (SUPABASE_URL, SUPABASE_KEY)
+20. [x] End-to-End Test (lokal getestet)
 
 ## Verifikation
 
@@ -305,18 +307,18 @@ kubectl get jobs -n coding-swarm -w
 SELECT id, status, worker_pod, result FROM tasks;
 ```
 
-### Checkliste End-to-End
-- [ ] Task pending → Job wird erstellt
-- [ ] Job running → Task status = 'running'
-- [ ] Job completed → Logs extrahiert, Task status = 'completed'
-- [ ] Job failed → Task status = 'failed'
-- [ ] Timeout → Job gelöscht, Task status = 'failed'
-- [ ] Gleicher Addressee → Sequentielle Ausführung
-- [ ] Verschiedene Addressees → Parallele Ausführung
+### Checkliste End-to-End ✅
+- [x] Task pending → Job wird erstellt
+- [x] Job running → Task status = 'running'
+- [x] Job completed → Logs extrahiert, Task status = 'completed'
+- [x] Job failed → Task status = 'failed'
+- [x] Timeout → Job gelöscht, Task status = 'failed'
+- [x] Gleicher Addressee → Sequentielle Ausführung
+- [x] Verschiedene Addressees → Parallele Ausführung
 
-## Offene Fragen
+## Offene Fragen (für spätere Iterationen)
 
-1. **Leader Election**: Brauchen wir K8s Lease für zusätzliche Singleton-Garantie?
+1. **Leader Election**: ~~Brauchen wir K8s Lease?~~ → File-Lock implementiert, K8s Lease optional
 2. **Secrets Rotation**: Wie werden SUPABASE_KEY und andere Secrets aktualisiert?
 3. **Metriken**: Prometheus-Export für Monitoring?
-4. **Backpressure**: Max. gleichzeitige Jobs limitieren?
+4. ~~**Backpressure**: Max. gleichzeitige Jobs limitieren?~~ → ✅ Implementiert via `MAX_PARALLEL_JOBS`
