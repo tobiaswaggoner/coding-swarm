@@ -4,6 +4,11 @@ import { createServerClient } from "@/lib/supabase";
 import type { CockpitUser } from "@/lib/database.types";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ArrowLeft, CheckCircle, XCircle, Clock, Ban } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -51,21 +56,24 @@ function getStatusBadge(status: CockpitUser["status"]) {
   switch (status) {
     case "authorized":
       return (
-        <span className="rounded-full bg-green-500/20 px-2 py-1 text-xs text-green-400">
+        <Badge variant="default" className="gap-1">
+          <CheckCircle className="h-3 w-3" />
           Authorized
-        </span>
+        </Badge>
       );
     case "pending":
       return (
-        <span className="rounded-full bg-yellow-500/20 px-2 py-1 text-xs text-yellow-400">
+        <Badge variant="secondary" className="gap-1">
+          <Clock className="h-3 w-3" />
           Pending
-        </span>
+        </Badge>
       );
     case "blocked":
       return (
-        <span className="rounded-full bg-red-500/20 px-2 py-1 text-xs text-red-400">
+        <Badge variant="destructive" className="gap-1">
+          <Ban className="h-3 w-3" />
           Blocked
-        </span>
+        </Badge>
       );
   }
 }
@@ -83,21 +91,22 @@ export default async function AdminUsersPage() {
       <main className="flex-1">
         <div className="mx-auto max-w-4xl px-4 py-8">
           <div className="mb-6">
-            <Link
-              href="/"
-              className="text-sm text-zinc-400 transition-colors hover:text-white"
-            >
-              &larr; Back to Dashboard
-            </Link>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/" className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Dashboard
+              </Link>
+            </Button>
           </div>
 
-          <h1 className="mb-8 text-2xl font-bold text-white">User Management</h1>
+          <h1 className="mb-8 text-2xl font-bold text-foreground">User Management</h1>
 
           {/* Pending Users */}
           {pendingUsers.length > 0 && (
             <section className="mb-8">
-              <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-yellow-400">
-                <span>⏳</span> Pending Approval ({pendingUsers.length})
+              <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-primary">
+                <Clock className="h-5 w-5" />
+                Pending Approval ({pendingUsers.length})
               </h2>
               <div className="space-y-3">
                 {pendingUsers.map((user) => (
@@ -113,11 +122,12 @@ export default async function AdminUsersPage() {
 
           {/* Authorized Users */}
           <section className="mb-8">
-            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-green-400">
-              <span>✅</span> Authorized Users ({authorizedUsers.length})
+            <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              Authorized Users ({authorizedUsers.length})
             </h2>
             {authorizedUsers.length === 0 ? (
-              <p className="text-zinc-500">No authorized users yet.</p>
+              <p className="text-muted-foreground">No authorized users yet.</p>
             ) : (
               <div className="space-y-3">
                 {authorizedUsers.map((user) => (
@@ -134,8 +144,9 @@ export default async function AdminUsersPage() {
           {/* Blocked Users */}
           {blockedUsers.length > 0 && (
             <section>
-              <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-red-400">
-                <span>🚫</span> Blocked Users ({blockedUsers.length})
+              <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-destructive">
+                <Ban className="h-5 w-5" />
+                Blocked Users ({blockedUsers.length})
               </h2>
               <div className="space-y-3">
                 {blockedUsers.map((user) => (
@@ -162,64 +173,59 @@ function UserCard({
   onUpdateStatus: (formData: FormData) => Promise<void>;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-      <div className="flex items-center gap-4">
-        {user.avatar_url && (
-          <img
-            src={user.avatar_url}
-            alt={user.name || "User"}
-            className="h-10 w-10 rounded-full"
-          />
-        )}
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-white">{user.name || "Unknown"}</span>
-            {getStatusBadge(user.status)}
-          </div>
-          <div className="flex items-center gap-2 text-sm text-zinc-500">
-            <span>{user.email}</span>
-            {user.github_username && (
-              <>
-                <span>•</span>
-                <span>@{user.github_username}</span>
-              </>
-            )}
-          </div>
-          <div className="mt-1 text-xs text-zinc-600">
-            Joined {new Date(user.created_at).toLocaleDateString()}
-            {user.last_login && (
-              <> • Last login {new Date(user.last_login).toLocaleDateString()}</>
-            )}
+    <Card>
+      <CardContent className="flex items-center justify-between p-4">
+        <div className="flex items-center gap-4">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={user.avatar_url || undefined} alt={user.name || "User"} />
+            <AvatarFallback className="bg-primary/10 text-primary">
+              {user.name?.charAt(0) || "U"}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-foreground">{user.name || "Unknown"}</span>
+              {getStatusBadge(user.status)}
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>{user.email}</span>
+              {user.github_username && (
+                <>
+                  <span>•</span>
+                  <span>@{user.github_username}</span>
+                </>
+              )}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              Joined {new Date(user.created_at).toLocaleDateString()}
+              {user.last_login && (
+                <> • Last login {new Date(user.last_login).toLocaleDateString()}</>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="flex gap-2">
-        {user.status !== "authorized" && (
-          <form action={onUpdateStatus}>
-            <input type="hidden" name="userId" value={user.id} />
-            <input type="hidden" name="status" value="authorized" />
-            <button
-              type="submit"
-              className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-green-700"
-            >
-              Authorize
-            </button>
-          </form>
-        )}
-        {user.status !== "blocked" && (
-          <form action={onUpdateStatus}>
-            <input type="hidden" name="userId" value={user.id} />
-            <input type="hidden" name="status" value="blocked" />
-            <button
-              type="submit"
-              className="rounded-lg bg-red-600/20 px-3 py-1.5 text-sm font-medium text-red-400 transition-colors hover:bg-red-600/30"
-            >
-              Block
-            </button>
-          </form>
-        )}
-      </div>
-    </div>
+        <div className="flex gap-2">
+          {user.status !== "authorized" && (
+            <form action={onUpdateStatus}>
+              <input type="hidden" name="userId" value={user.id} />
+              <input type="hidden" name="status" value="authorized" />
+              <Button type="submit" size="sm">
+                Authorize
+              </Button>
+            </form>
+          )}
+          {user.status !== "blocked" && (
+            <form action={onUpdateStatus}>
+              <input type="hidden" name="userId" value={user.id} />
+              <input type="hidden" name="status" value="blocked" />
+              <Button type="submit" variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                Block
+              </Button>
+            </form>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

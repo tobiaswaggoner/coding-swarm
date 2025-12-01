@@ -1,25 +1,27 @@
 import type { Project } from "@/lib/database.types";
 import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface ProjectCardProps {
   project: Project;
   runningTasks: number;
 }
 
-function getStatusIcon(status: Project["status"]): string {
+function getStatusVariant(status: Project["status"]): "default" | "secondary" | "destructive" | "outline" {
   switch (status) {
     case "active":
-      return "🟢";
+      return "default";
     case "paused":
-      return "⏸️";
+      return "secondary";
     case "awaiting_review":
-      return "👀";
+      return "outline";
     case "completed":
-      return "✅";
+      return "secondary";
     case "failed":
-      return "🔴";
+      return "destructive";
     default:
-      return "💤";
+      return "secondary";
   }
 }
 
@@ -30,9 +32,9 @@ function getStatusLabel(status: Project["status"]): string {
     case "paused":
       return "Paused";
     case "awaiting_review":
-      return "Awaiting Review";
+      return "Review";
     case "completed":
-      return "Completed";
+      return "Done";
     case "failed":
       return "Failed";
     default:
@@ -56,69 +58,59 @@ function getTimeAgo(dateString: string): string {
 }
 
 function extractKeyword(epic: string | null): string {
-  if (!epic) return "—";
-  // Extract first meaningful word or phrase (max 15 chars)
+  if (!epic) return "No task";
   const words = epic.split(/\s+/).slice(0, 3).join(" ");
-  return words.length > 15 ? words.slice(0, 15) + "…" : words;
+  return words.length > 20 ? words.slice(0, 20) + "..." : words;
 }
 
 export function ProjectCard({ project, runningTasks }: ProjectCardProps) {
-  const statusColor =
-    project.status === "active"
-      ? "border-green-500/30 bg-green-500/5"
-      : project.status === "failed"
-        ? "border-red-500/30 bg-red-500/5"
-        : project.status === "awaiting_review"
-          ? "border-yellow-500/30 bg-yellow-500/5"
-          : "border-zinc-700 bg-zinc-800/50";
-
   return (
-    <Link
-      href={`/projects/${project.id}`}
-      className={`block rounded-lg border p-4 transition-all hover:border-zinc-600 hover:bg-zinc-800/80 ${statusColor}`}
-    >
-      <div className="flex items-start justify-between">
-        <h3 className="font-semibold text-white">{project.name}</h3>
-        <span className="text-lg" title={getStatusLabel(project.status)}>
-          {getStatusIcon(project.status)}
-        </span>
-      </div>
+    <Link href={`/projects/${project.id}`}>
+      <Card className="transition-all hover:border-primary/50 hover:shadow-lg hover:shadow-primary/5">
+        <CardHeader className="pb-2">
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle className="text-lg leading-tight">{project.name}</CardTitle>
+            <Badge variant={getStatusVariant(project.status)}>
+              {getStatusLabel(project.status)}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Workers</span>
+              <span className={runningTasks > 0 ? "font-medium text-primary" : "text-muted-foreground"}>
+                {runningTasks > 0 ? `${runningTasks} running` : "idle"}
+              </span>
+            </div>
 
-      <div className="mt-3 space-y-2 text-sm">
-        <div className="flex items-center gap-2">
-          <span className="text-zinc-500">Workers:</span>
-          <span className="font-medium text-zinc-300">
-            {runningTasks > 0 ? (
-              <span className="text-green-400">{runningTasks} running</span>
-            ) : (
-              <span className="text-zinc-500">idle</span>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Task</span>
+              <span className="font-medium text-foreground truncate max-w-[140px]">
+                {extractKeyword(project.current_epic)}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Progress</span>
+              <span className="font-medium text-foreground">
+                {project.completed_tasks}/{project.total_tasks}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-border pt-3">
+            <span className="text-xs text-muted-foreground">
+              {getTimeAgo(project.last_activity)}
+            </span>
+            {project.pr_url && (
+              <Badge variant="outline" className="text-xs">
+                PR #{project.pr_number}
+              </Badge>
             )}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-zinc-500">Task:</span>
-          <span className="font-medium text-zinc-300">
-            {extractKeyword(project.current_epic)}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-zinc-500">Progress:</span>
-          <span className="font-medium text-zinc-300">
-            {project.completed_tasks}/{project.total_tasks} tasks
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-3 flex items-center justify-between border-t border-zinc-700/50 pt-3">
-        <span className="text-xs text-zinc-500">
-          {getTimeAgo(project.last_activity)}
-        </span>
-        {project.pr_url && (
-          <span className="text-xs text-blue-400">PR #{project.pr_number}</span>
-        )}
-      </div>
+          </div>
+        </CardContent>
+      </Card>
     </Link>
   );
 }

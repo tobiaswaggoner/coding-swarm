@@ -3,6 +3,10 @@ import { createServerClient } from "@/lib/supabase";
 import type { Project } from "@/lib/database.types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Construction } from "lucide-react";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -39,40 +43,42 @@ export default async function ProjectPage({ params }: Props) {
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 py-8">
           <div className="mb-6">
-            <Link
-              href="/"
-              className="text-sm text-zinc-400 transition-colors hover:text-white"
-            >
-              &larr; Back to Dashboard
-            </Link>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/" className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Dashboard
+              </Link>
+            </Button>
           </div>
 
           <div className="mb-8 flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-white">{project.name}</h1>
-              <p className="mt-1 text-sm text-zinc-500">{project.repo_url}</p>
+              <h1 className="text-2xl font-bold text-foreground">{project.name}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">{project.repo_url}</p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-zinc-800 px-3 py-1 text-sm text-zinc-300">
-                {project.status}
-              </span>
-            </div>
+            <Badge variant="secondary">
+              {project.status}
+            </Badge>
           </div>
 
           {/* Placeholder for Phase 2 */}
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-12 text-center">
-            <span className="text-4xl">🚧</span>
-            <h2 className="mt-4 text-lg font-medium text-white">
-              Project Detail View - Coming Soon
-            </h2>
-            <p className="mt-2 text-sm text-zinc-500">
-              Task history, log visualization, and controls will be implemented
-              in Phase 2
-            </p>
-          </div>
+          <Card className="mb-8">
+            <CardContent className="flex flex-col items-center justify-center p-12 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <Construction className="h-8 w-8 text-primary" />
+              </div>
+              <h2 className="mt-4 text-lg font-medium text-foreground">
+                Project Detail View - Coming Soon
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Task history, log visualization, and controls will be implemented
+                in Phase 2
+              </p>
+            </CardContent>
+          </Card>
 
           {/* Basic project info */}
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <InfoCard
               title="Epic"
               value={project.current_epic || "No epic defined"}
@@ -106,9 +112,13 @@ export default async function ProjectPage({ params }: Props) {
 
 function InfoCard({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-      <h3 className="text-sm font-medium text-zinc-500">{title}</h3>
-      <p className="mt-1 text-white">{value}</p>
-    </div>
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-foreground">{value}</p>
+      </CardContent>
+    </Card>
   );
 }

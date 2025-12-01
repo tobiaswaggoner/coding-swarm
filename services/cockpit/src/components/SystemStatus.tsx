@@ -1,3 +1,6 @@
+import { Badge } from "@/components/ui/badge";
+import { CheckCircle, XCircle, Circle } from "lucide-react";
+
 interface SystemStatusProps {
   runningPods: number;
   totalPods: number;
@@ -19,7 +22,6 @@ function getHeartbeatStatus(lastHeartbeat: string | null): {
   const diffMs = now.getTime() - heartbeatDate.getTime();
   const diffSecs = Math.floor(diffMs / 1000);
 
-  // Consider unhealthy if last heartbeat was more than 60 seconds ago
   if (diffSecs > 60) {
     return {
       healthy: false,
@@ -44,10 +46,10 @@ export function SystemStatus({
   const overallHealthy = engineHealthy && heartbeat.healthy && supabaseHealthy;
 
   return (
-    <footer className="border-t border-zinc-800 bg-zinc-900/50">
-      <div className="mx-auto max-w-7xl px-4 py-4">
+    <footer className="border-t border-border bg-card/50">
+      <div className="mx-auto max-w-7xl px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-4 md:gap-6">
             <StatusIndicator
               label="Pods"
               value={`${runningPods}/${totalPods}`}
@@ -65,14 +67,14 @@ export function SystemStatus({
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <span
-              className={`h-2 w-2 rounded-full ${overallHealthy ? "bg-green-500" : "bg-red-500"}`}
-            />
-            <span className="text-sm text-zinc-400">
-              {overallHealthy ? "System healthy" : "System degraded"}
-            </span>
-          </div>
+          <Badge variant={overallHealthy ? "default" : "destructive"} className="gap-1.5">
+            {overallHealthy ? (
+              <CheckCircle className="h-3 w-3" />
+            ) : (
+              <XCircle className="h-3 w-3" />
+            )}
+            {overallHealthy ? "System healthy" : "System degraded"}
+          </Badge>
         </div>
       </div>
     </footer>
@@ -90,12 +92,17 @@ function StatusIndicator({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm text-zinc-500">{label}:</span>
-      <span
-        className={`text-sm font-medium ${healthy ? "text-green-400" : "text-red-400"}`}
-      >
-        {healthy ? "✅" : "❌"} {value}
-      </span>
+      <span className="text-sm text-muted-foreground">{label}:</span>
+      <div className="flex items-center gap-1.5">
+        <Circle
+          className={`h-2 w-2 fill-current ${
+            healthy ? "text-green-500" : "text-destructive"
+          }`}
+        />
+        <span className={`text-sm font-medium ${healthy ? "text-foreground" : "text-destructive"}`}>
+          {value}
+        </span>
+      </div>
     </div>
   );
 }

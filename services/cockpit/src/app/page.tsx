@@ -95,19 +95,19 @@ export default async function Dashboard() {
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 py-8">
           <div className="mb-6 flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-white">Projects</h1>
-            <div className="text-sm text-zinc-500">
+            <h1 className="text-2xl font-bold text-foreground">Projects</h1>
+            <div className="text-sm text-muted-foreground">
               {projects.length} project{projects.length !== 1 ? "s" : ""}
             </div>
           </div>
 
           {projects.length === 0 ? (
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-12 text-center">
+            <div className="rounded-lg border border-border bg-card/50 p-12 text-center">
               <span className="text-4xl">📭</span>
-              <h2 className="mt-4 text-lg font-medium text-white">
+              <h2 className="mt-4 text-lg font-medium text-foreground">
                 No projects yet
               </h2>
-              <p className="mt-2 text-sm text-zinc-500">
+              <p className="mt-2 text-sm text-muted-foreground">
                 Projects will appear here once created via the Blue Agent or API
               </p>
             </div>
