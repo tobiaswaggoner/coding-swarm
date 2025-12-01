@@ -9,7 +9,11 @@ import {
   executeDecision,
   generateInitialPlan,
 } from "./decisions/engine.js";
-import { commitAndPushFile, isGitRepo } from "./git/operations.js";
+import {
+  commitAndPushFile,
+  isGitRepo,
+  ensureIntegrationBranch,
+} from "./git/operations.js";
 
 /**
  * Main entry point for Green Agent
@@ -36,17 +40,6 @@ async function main(): Promise<void> {
       created_by: "green-agent",
     });
     log.info(`Created project: ${project.id}`);
-  }
-
-  // Check if project is in a terminal state
-  if (project.status === "completed") {
-    log.info("Project is already completed, nothing to do");
-    return;
-  }
-
-  if (project.status === "paused") {
-    log.info("Project is paused, nothing to do");
-    return;
   }
 
   // 2. Load trigger context if we were triggered by a completed task
@@ -96,6 +89,11 @@ async function main(): Promise<void> {
     savePlan(plan);
     planCreated = true;
     log.info(`Created initial plan with ${plan.steps.length} steps`);
+
+    // Ensure integration branch exists before creating any tasks
+    if (plan.integrationBranch) {
+      ensureIntegrationBranch(plan.integrationBranch, project.default_branch || "main");
+    }
   }
 
   // 5. Determine next action

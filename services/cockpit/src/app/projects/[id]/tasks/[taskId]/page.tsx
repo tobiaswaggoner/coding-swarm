@@ -24,6 +24,7 @@ import {
   Cpu,
   FolderKanban,
   Bot,
+  MessageSquare,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { TaskType } from "@/lib/database.types";
@@ -70,6 +71,7 @@ const taskTypeConfig: Record<TaskType, { icon: typeof Code; label: string; color
   FIX: { icon: Wrench, label: "Fix", color: "text-orange-500" },
   PR: { icon: GitPullRequest, label: "PR", color: "text-green-500" },
   VALIDATE: { icon: CheckCircle, label: "Validate", color: "text-cyan-500" },
+  USER_MESSAGE: { icon: MessageSquare, label: "User Message", color: "text-primary" },
 };
 
 async function getTaskWithLogs(

@@ -14,6 +14,7 @@ import {
   Loader2,
   XCircle,
   ChevronRight,
+  MessageSquare,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -39,6 +40,7 @@ const taskTypeConfig: Record<TaskType, { icon: typeof Code; color: string }> = {
   FIX: { icon: Wrench, color: "text-orange-500" },
   PR: { icon: GitPullRequest, color: "text-green-500" },
   VALIDATE: { icon: CheckCircle, color: "text-cyan-500" },
+  USER_MESSAGE: { icon: MessageSquare, color: "text-primary" },
 };
 
 export function TaskCard({ task, projectId }: TaskCardProps) {

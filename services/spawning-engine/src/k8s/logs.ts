@@ -47,12 +47,47 @@ export async function getJobLogs(
 }
 
 /**
+ * Extract branch name from summary text
+ * Looks for patterns like:
+ * - `feature/step-1-xxx`
+ * - Branch-Name: feature/xxx
+ * - Branch: feature/xxx
+ */
+function extractBranchFromSummary(summary: string): string | undefined {
+  // Pattern 1: Markdown code block with branch name (most common)
+  // Matches: `feature/step-1-xxx` or `feature/xxx-123`
+  const codeBlockMatch = summary.match(/`(feature\/[a-zA-Z0-9_-]+)`/);
+  if (codeBlockMatch) {
+    return codeBlockMatch[1];
+  }
+
+  // Pattern 2: "Branch-Name:" or "Branch:" followed by branch name
+  const branchLabelMatch = summary.match(
+    /Branch(?:-Name)?:\s*`?([a-zA-Z0-9_/-]+)`?/i
+  );
+  if (branchLabelMatch) {
+    return branchLabelMatch[1];
+  }
+
+  // Pattern 3: Any feature branch pattern in the text
+  const featureBranchMatch = summary.match(
+    /\b(feature\/[a-zA-Z0-9_-]+(?:-[a-zA-Z0-9_-]+)*)\b/
+  );
+  if (featureBranchMatch) {
+    return featureBranchMatch[1];
+  }
+
+  return undefined;
+}
+
+/**
  * Parse JSONL logs to extract final result
  * Claude CLI outputs JSON lines; we look for the final result message.
  */
 export function parseJsonlResult(logs: string): {
   success: boolean;
   summary: string;
+  branch?: string;
   cost_usd?: number;
   duration_ms?: number;
 } {
@@ -89,9 +124,13 @@ export function parseJsonlResult(logs: string): {
   // Determine success based on whether we got a meaningful response
   const success = lastAssistantMessage.length > 0;
 
+  // Try to extract branch name from the summary
+  const branch = extractBranchFromSummary(lastAssistantMessage);
+
   return {
     success,
     summary: lastAssistantMessage.slice(0, 1000) || "No output captured",
+    ...(branch && { branch }),
     ...(totalCost > 0 && { cost_usd: totalCost }),
     ...(totalDuration > 0 && { duration_ms: totalDuration }),
   };

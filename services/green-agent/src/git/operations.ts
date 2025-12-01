@@ -174,3 +174,53 @@ export function ensureBranch(
     }
   }
 }
+
+/**
+ * Check if a branch exists on the remote
+ */
+export function remoteBranchExists(
+  branchName: string,
+  cwd: string = "/workspace"
+): boolean {
+  try {
+    fetch(cwd);
+    const result = git(`ls-remote --heads origin ${branchName}`, { cwd });
+    return result.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ensure the integration branch exists on the remote.
+ * If it doesn't exist, create it from the base branch and push.
+ */
+export function ensureIntegrationBranch(
+  integrationBranch: string,
+  baseBranch: string = "main",
+  cwd: string = "/workspace"
+): void {
+  log.info(`Ensuring integration branch exists: ${integrationBranch}`);
+
+  if (remoteBranchExists(integrationBranch, cwd)) {
+    log.info(`Integration branch ${integrationBranch} already exists`);
+    return;
+  }
+
+  log.info(
+    `Creating integration branch ${integrationBranch} from ${baseBranch}`
+  );
+
+  // Make sure we have the latest base branch
+  fetch(cwd);
+
+  // Create branch from base and push
+  try {
+    git(`checkout -b ${integrationBranch} origin/${baseBranch}`, { cwd });
+    push(cwd);
+    log.info(`Created and pushed integration branch: ${integrationBranch}`);
+  } catch (err) {
+    log.error(`Failed to create integration branch: ${err}`);
+    throw err;
+  }
+}

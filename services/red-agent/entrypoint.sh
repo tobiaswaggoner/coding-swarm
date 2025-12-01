@@ -125,7 +125,22 @@ if [ -n "$REPO_URL" ]; then
     # Checkout branch if specified
     if [ -n "$BRANCH" ]; then
         echo "  Checking out branch: $BRANCH"
-        git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
+        # Fetch to ensure we have remote branch info
+        git fetch origin
+
+        # Check if remote branch exists
+        if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            # Remote branch exists - checkout tracking it
+            echo "  [INFO] Remote branch origin/$BRANCH exists"
+            git checkout -b "$BRANCH" "origin/$BRANCH" 2>/dev/null || git checkout "$BRANCH"
+        else
+            # Remote branch does NOT exist - create from current HEAD and push
+            echo "  [WARN] Remote branch origin/$BRANCH does not exist!"
+            echo "  [INFO] Creating branch $BRANCH from current HEAD and pushing..."
+            git checkout -b "$BRANCH"
+            git push -u origin "$BRANCH"
+            echo "  [OK] Created and pushed new branch: $BRANCH"
+        fi
     fi
 
     echo "  [OK] Repository ready in /workspace"

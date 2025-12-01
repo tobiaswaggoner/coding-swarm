@@ -1,5 +1,5 @@
 export type TaskStatus = "pending" | "running" | "completed" | "failed";
-export type TaskType = "CODE" | "MERGE" | "REVIEW" | "FIX" | "PR" | "VALIDATE";
+export type TaskType = "CODE" | "MERGE" | "REVIEW" | "FIX" | "PR" | "VALIDATE" | "USER_MESSAGE";
 export type ProjectStatus =
   | "active"
   | "paused"
@@ -86,6 +86,29 @@ export interface CockpitUser {
   last_login: string;
 }
 
+// Conversation types
+export type ConversationStatus = "active" | "archived";
+export type MessageRole = "user" | "green" | "blue" | "system";
+
+export interface Conversation {
+  id: string;
+  project_id: string;
+  title: string | null;
+  status: ConversationStatus;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  role: MessageRole;
+  content: string;
+  created_at: string;
+  triggers_task_id: string | null;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -126,6 +149,23 @@ export interface Database {
           last_login?: string;
         };
         Update: Partial<CockpitUser>;
+      };
+      conversations: {
+        Row: Conversation;
+        Insert: Omit<Conversation, "id" | "created_at" | "updated_at"> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Conversation>;
+      };
+      messages: {
+        Row: Message;
+        Insert: Omit<Message, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Message>;
       };
     };
   };

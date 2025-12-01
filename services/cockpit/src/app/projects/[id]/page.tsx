@@ -14,6 +14,7 @@ import {
   CheckCircle,
   XCircle,
   ExternalLink,
+  MessageSquare,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -101,9 +102,17 @@ export default async function ProjectPage({ params }: Props) {
                 <ExternalLink className="h-3 w-3" />
               </a>
             </div>
-            <Badge variant={statusVariants[project.status] || "secondary"}>
-              {project.status.replace("_", " ")}
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Button asChild variant="outline">
+                <Link href={`/projects/${id}/chat`}>
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Chat
+                </Link>
+              </Button>
+              <Badge variant={statusVariants[project.status] || "secondary"}>
+                {project.status.replace("_", " ")}
+              </Badge>
+            </div>
           </div>
 
           {/* Epic */}
