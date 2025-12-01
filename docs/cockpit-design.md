@@ -98,38 +98,111 @@ Kompakte Darstellung:
 
 ## Projektansicht (Detail)
 
-> **Status:** Placeholder implementiert, Details in Phase 2
+### Task-Historie mit Agent-Visualisierung
 
-### Aktueller Stand
-
-- Basis-Informationen (Epic, Progress, Branch, Timestamps)
-- Placeholder für Task-Historie und Log-Visualisierung
-
-### Geplant (Phase 2)
+Die Task-Liste zeigt den Workflow zwischen Agents durch farbige linke Ränder:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Header: ← Back | Projektname | Status-Badge                 │
+│ ← Back to Projects    Project Name         [Active]         │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  ┌─────────────────────┐  ┌───────────────────────────────┐│
-│  │ Task-Historie       │  │ Kommunikation / Anweisungen   ││
-│  │                     │  │                               ││
-│  │ ✅ Task 1 - Merge   │  │ [Green] [Blue]                ││
-│  │ ✅ Task 2 - Code    │  │                               ││
-│  │ 🔄 Task 3 - Code    │  │ Kontext-Dateien:              ││
-│  │ ⏳ Task 4 - Review  │  │ 📄 .ai/plan.md                ││
-│  │                     │  │ 📄 .ai/epic.md                ││
-│  │ [Task auswählen     │  │                               ││
-│  │  für Details]       │  │ Neue Anweisung:               ││
-│  │                     │  │ ┌─────────────────────────┐   ││
-│  │                     │  │ │                         │   ││
-│  │                     │  │ └─────────────────────────┘   ││
-│  │                     │  │ [Senden]                      ││
-│  └─────────────────────┘  └───────────────────────────────┘│
+│  RUNNING (1)                                                │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │🟢│ ✓ Plan next implementation step...        2m ago    ││
+│  └─────────────────────────────────────────────────────────┘│
+│                                                             │
+│  COMPLETED (3)                                              │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │🔴│ ✓ Implement user authentication...        5m ago    ││
+│  │🟢│ ✓ Create MERGE task for feature...       10m ago    ││
+│  │🔴│ ✓ Merge feature branch into main...      12m ago    ││
+│  └─────────────────────────────────────────────────────────┘│
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Agent-Farben:**
+| Agent | Farbe | Beschreibung |
+|-------|-------|--------------|
+| 🔴 Red | `border-l-red-500` | Coding Agent (Worker) |
+| 🟢 Green | `border-l-green-500` | Project Manager |
+| 🔵 Blue | `border-l-blue-500` | Executive Assistant (geplant) |
+
+**Agent-Erkennung:** Aus dem `addressee`-Feld:
+- `project-mgr-*` → Green
+- `worker-*` → Red
+- `blue-*` / `executive-*` → Blue
+
+---
+
+## Task-Detail-Ansicht
+
+### Agent-Banner
+
+Prominenter farbiger Header zeigt den ausführenden Agent:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│████████████████████ ROTER BANNER ███████████████████████████│
+│ [CPU]  Coding Agent                      [CODE Task]        │
+│        Worker executing code tasks                          │
+├─────────────────────────────────────────────────────────────┤
+│ ← Back to Project                                           │
+│                                                             │
+│ ┌─Branch────┐ ┌─Created───┐ ┌─Started───┐ ┌─Completed─┐    │
+│ │ feat/...  │ │ 21h ago   │ │ 21h ago   │ │ 21h ago   │    │
+│ └───────────┘ └───────────┘ └───────────┘ └───────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Agent-Konfiguration:**
+| Agent | Label | Icon | Hintergrund |
+|-------|-------|------|-------------|
+| Red | Coding Agent | `Cpu` | `bg-red-600` |
+| Green | Project Manager | `FolderKanban` | `bg-green-600` |
+| Blue | Executive Assistant | `Bot` | `bg-blue-600` |
+
+### Collapsible Sections
+
+Drei separate, ein-/ausklappbare Bereiche:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Task Prompt                                    [▼ expanded] │
+├─────────────────────────────────────────────────────────────┤
+│ Markdown-formatierter Prompt-Text                           │
+│ - Listen werden gerendert                                   │
+│ - **Bold** und `code` funktionieren                        │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ Result                                         [▼ expanded] │
+├─────────────────────────────────────────────────────────────┤
+│ ✓ Success                                                   │
+│ Markdown-formatierte Summary mit Headlines, Listen, etc.    │
+│ ─────────────────────────────────────────────────────────── │
+│ $ Cost: $0.21  ⏱ Duration: 2m 3s  🔗 View Pull Request     │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ Execution (Log size: 45.2 KB)                 [▶ collapsed] │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Default-Zustände:**
+- Task Prompt: expanded
+- Result: expanded
+- Execution: collapsed
+
+### Markdown-Rendering
+
+Alle Text-Inhalte (Prompt, Result Summary) werden als Markdown gerendert:
+- Headlines (`#`, `##`, `###`)
+- Listen (nummeriert und Bullet-Points)
+- Code-Blöcke und Inline-Code
+- Bold/Italic
+- Kompaktes Styling (`prose-xs`) passend zur UI
 
 ---
 
@@ -209,6 +282,11 @@ Nur für autorisierte User sichtbar.
 - [x] Task-Detail mit Log-Visualisierung
 - [x] JSONL-Parser und Renderer
 - [x] Supabase Realtime für Live-Updates
+- [x] Agent-Visualisierung (farbige Ränder in Task-Liste)
+- [x] Agent-Banner auf Task-Detail-Seite (Red/Green/Blue)
+- [x] Markdown-Rendering für Prompts und Results
+- [x] Collapsible Cards für Task Prompt, Result, Execution
+- [x] Agent-Utils für Server/Client-Komponenten
 
 ### Phase 3: Steuerung
 
@@ -216,8 +294,11 @@ Nur für autorisierte User sichtbar.
 - [ ] Kill-Funktion für Jobs
 - [ ] Cluster-Monitoring Container
 
-### Phase 4: Kommunikation
+### Phase 4: Projektverwaltung & Kommunikation
 
+- [ ] Projekt hinzufügen (GitHub Repo URL, Name, Default Branch)
+- [ ] Projekt bearbeiten (Epic, Status, Branches)
+- [ ] Projekt archivieren/löschen
 - [ ] Anweisungs-Interface (Green)
 - [ ] Markdown-basierte Kommunikation
 - [ ] LLM-Summary Service
@@ -236,9 +317,10 @@ Nur für autorisierte User sichtbar.
 |------------|-------------|
 | Framework | Next.js 16 (App Router, Turbopack) |
 | UI Components | shadcn/ui |
-| Styling | Tailwind CSS v4 |
+| Styling | Tailwind CSS v4 + @tailwindcss/typography |
 | Auth | NextAuth v5 (Auth.js) mit GitHub Provider |
-| Database | Supabase (PostgreSQL) |
+| Database | Supabase (PostgreSQL + Realtime) |
+| Markdown | react-markdown |
 | Theming | next-themes (Dark default) |
 | Icons | Lucide React |
 | Deployment | Vercel |
@@ -267,25 +349,28 @@ services/cockpit/
 │   │   ├── login/                        # Login-Seite
 │   │   ├── pending/                      # Warteseite für neue User
 │   │   ├── projects/[id]/                # Projekt-Detail mit Task-Historie
-│   │   │   └── tasks/[taskId]/           # Task-Detail mit Log-Viewer
+│   │   │   └── tasks/[taskId]/           # Task-Detail mit Agent-Banner
 │   │   ├── layout.tsx                    # Root Layout + ThemeProvider
 │   │   ├── page.tsx                      # Dashboard
-│   │   └── globals.css                   # CSS Variables + Theme
+│   │   └── globals.css                   # CSS Variables + Theme + Typography
 │   ├── components/
 │   │   ├── ui/                           # shadcn Komponenten
 │   │   ├── Header.tsx
 │   │   ├── ProjectCard.tsx
 │   │   ├── SystemStatus.tsx
-│   │   ├── TaskCard.tsx                  # Task-Kachel für Liste
+│   │   ├── TaskCard.tsx                  # Task-Kachel mit Agent-Farbe
 │   │   ├── TaskList.tsx                  # Statische Task-Liste
 │   │   ├── RealtimeTaskList.tsx          # Task-Liste mit Live-Updates
-│   │   ├── LogViewer.tsx                 # JSONL Log-Visualisierung
+│   │   ├── LogViewer.tsx                 # JSONL Log + MarkdownContent
 │   │   ├── RealtimeLogViewer.tsx         # Log-Viewer mit Live-Updates
+│   │   ├── ResultCard.tsx                # Result mit Realtime + Markdown
+│   │   ├── CollapsibleCard.tsx           # Ein-/ausklappbare Card
 │   │   ├── theme-provider.tsx
 │   │   └── theme-toggle.tsx
 │   ├── hooks/
 │   │   └── useRealtimeTasks.ts           # Supabase Realtime Hooks
 │   ├── lib/
+│   │   ├── agent-utils.ts                # Agent-Type Erkennung (shared)
 │   │   ├── database.types.ts             # TypeScript Types
 │   │   ├── jsonl-parser.ts               # JSONL Parser für Claude CLI Output
 │   │   ├── supabase.ts                   # Supabase Client
