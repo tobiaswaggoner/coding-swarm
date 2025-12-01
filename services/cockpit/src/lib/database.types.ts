@@ -1,11 +1,6 @@
 export type TaskStatus = "pending" | "running" | "completed" | "failed";
 export type TaskType = "CODE" | "MERGE" | "REVIEW" | "FIX" | "PR" | "VALIDATE" | "USER_MESSAGE";
-export type ProjectStatus =
-  | "active"
-  | "paused"
-  | "awaiting_review"
-  | "completed"
-  | "failed";
+export type ProjectStatus = "active" | "paused";
 
 export interface TaskResult {
   success: boolean;

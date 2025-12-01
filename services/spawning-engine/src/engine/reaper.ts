@@ -104,9 +104,9 @@ async function triggerProjectManager(
     return;
   }
 
-  // Don't trigger for completed/paused projects
-  if (project.status === "completed" || project.status === "paused") {
-    log.debug(`Project ${completedTask.project_id} is ${project.status}, skipping manager trigger`);
+  // Don't trigger for paused projects
+  if (project.status === "paused") {
+    log.debug(`Project ${completedTask.project_id} is paused, skipping manager trigger`);
     return;
   }
 

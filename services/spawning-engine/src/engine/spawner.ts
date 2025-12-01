@@ -40,6 +40,15 @@ export async function spawnPendingTasks(
       continue;
     }
 
+    // Check if project is paused (skip spawning if so)
+    if (task.project_id) {
+      const taskProject = await db.getProject(task.project_id);
+      if (taskProject?.status === "paused") {
+        log.debug(`Project ${task.project_id} is paused, skipping task ${task.id}`);
+        continue;
+      }
+    }
+
     const jobName = generateJobName(task);
 
     // Claim task in DB first (atomic)

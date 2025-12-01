@@ -54,12 +54,9 @@ async function getProjectWithTasks(
   };
 }
 
-const statusVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+const statusVariants: Record<string, "default" | "secondary"> = {
   active: "default",
   paused: "secondary",
-  awaiting_review: "outline",
-  completed: "outline",
-  failed: "destructive",
 };
 
 export default async function ProjectPage({ params }: Props) {

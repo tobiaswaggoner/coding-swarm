@@ -21,9 +21,6 @@ import type { Project, ProjectStatus } from "@/lib/database.types";
 const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
   { value: "active", label: "Active" },
   { value: "paused", label: "Paused" },
-  { value: "awaiting_review", label: "Awaiting Review" },
-  { value: "completed", label: "Completed" },
-  { value: "failed", label: "Failed" },
 ];
 
 interface ProjectFormProps {

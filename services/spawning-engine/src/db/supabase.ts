@@ -42,9 +42,9 @@ export interface TaskResult {
 }
 
 /**
- * Project status
+ * Project status (simplified: only active or paused)
  */
-export type ProjectStatus = "active" | "paused" | "awaiting_review" | "completed" | "failed";
+export type ProjectStatus = "active" | "paused";
 
 /**
  * Project record from database

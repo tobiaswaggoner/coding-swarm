@@ -8,38 +8,12 @@ interface ProjectCardProps {
   runningTasks: number;
 }
 
-function getStatusVariant(status: Project["status"]): "default" | "secondary" | "destructive" | "outline" {
-  switch (status) {
-    case "active":
-      return "default";
-    case "paused":
-      return "secondary";
-    case "awaiting_review":
-      return "outline";
-    case "completed":
-      return "secondary";
-    case "failed":
-      return "destructive";
-    default:
-      return "secondary";
-  }
+function getStatusVariant(status: Project["status"]): "default" | "secondary" {
+  return status === "active" ? "default" : "secondary";
 }
 
 function getStatusLabel(status: Project["status"]): string {
-  switch (status) {
-    case "active":
-      return "Active";
-    case "paused":
-      return "Paused";
-    case "awaiting_review":
-      return "Review";
-    case "completed":
-      return "Done";
-    case "failed":
-      return "Failed";
-    default:
-      return "Unknown";
-  }
+  return status === "active" ? "Active" : "Paused";
 }
 
 function getTimeAgo(dateString: string): string {

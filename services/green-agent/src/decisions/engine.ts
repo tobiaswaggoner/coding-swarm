@@ -390,10 +390,8 @@ export async function executeDecision(
     }
 
     case "MARK_AWAITING_REVIEW": {
-      await db.updateProject(config.projectId, {
-        status: "awaiting_review",
-      });
-      log.info("Project marked as awaiting_review");
+      // Status simplified: project stays active, PR existence indicates review state
+      log.info("PR created, project continues in active state");
       break;
     }
 
@@ -406,10 +404,8 @@ export async function executeDecision(
     }
 
     case "COMPLETE_PROJECT": {
-      await db.updateProject(config.projectId, {
-        status: "completed",
-      });
-      log.info("Project completed!");
+      // Status simplified: project stays active, completion is implicit
+      log.info("Project work completed, remaining in active state");
       break;
     }
 

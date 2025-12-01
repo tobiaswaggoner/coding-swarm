@@ -89,12 +89,6 @@ function getStatusBadge(status: Project["status"], deleted: boolean) {
       return <Badge className="bg-green-600">Active</Badge>;
     case "paused":
       return <Badge variant="secondary">Paused</Badge>;
-    case "awaiting_review":
-      return <Badge className="bg-blue-600">Awaiting Review</Badge>;
-    case "completed":
-      return <Badge className="bg-primary">Completed</Badge>;
-    case "failed":
-      return <Badge variant="destructive">Failed</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }

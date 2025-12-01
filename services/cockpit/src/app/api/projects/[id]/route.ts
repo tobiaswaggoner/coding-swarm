@@ -76,7 +76,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   if (status !== undefined) {
-    const validStatuses: ProjectStatus[] = ["active", "paused", "awaiting_review", "completed", "failed"];
+    const validStatuses: ProjectStatus[] = ["active", "paused"];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
