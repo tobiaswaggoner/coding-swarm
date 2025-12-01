@@ -36,9 +36,18 @@ export const config = {
   // Job settings
   jobTimeoutMinutes: optionalInt("JOB_TIMEOUT_MINUTES", 30),
   jobNamespace: optional("JOB_NAMESPACE", "coding-swarm"),
-  jobImage: optional("JOB_IMAGE", "tobiaswaggoner/coding-swarm-agent:latest"),
-  greenAgentImage: optional("GREEN_AGENT_IMAGE", "tobiaswaggoner/green-agent:latest"),
   maxParallelJobs: optionalInt("MAX_PARALLEL_JOBS", 10),
+
+  // Unified Agent Image (replaces separate red/green images)
+  agentImage: optional("AGENT_IMAGE", "tobiaswaggoner/coding-swarm-agent:latest"),
+
+  // Runtime Repository (cloned by agent at startup)
+  runtimeRepo: optional("RUNTIME_REPO", "https://github.com/tobiaswaggoner/coding-swarm-runtime"),
+  runtimeBranch: optional("RUNTIME_BRANCH", "main"),
+
+  // Legacy support (deprecated, use agentImage instead)
+  jobImage: optional("JOB_IMAGE", ""),
+  greenAgentImage: optional("GREEN_AGENT_IMAGE", ""),
 
   // Logging
   logLevel: optional("LOG_LEVEL", "info"),

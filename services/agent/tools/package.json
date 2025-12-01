@@ -1,0 +1,22 @@
+{
+  "name": "coding-swarm-agent-tools",
+  "version": "1.0.0",
+  "description": "Unified Agent CLI tools for Coding Swarm",
+  "type": "module",
+  "main": "dist/generate-prompt.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "npx tsx src/generate-prompt.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -11,109 +11,77 @@ export interface JobStatus {
 }
 
 /**
- * Agent roles for the unified agent
- */
-export type AgentRole = "developer" | "project-manager" | "reviewer";
-
-/**
- * Determine the agent role based on task properties
- */
-export function determineRole(task: Task): AgentRole {
-  if (task.addressee.startsWith("project-mgr-")) {
-    return "project-manager";
-  }
-  if (task.task_type === "REVIEW") {
-    return "reviewer";
-  }
-  return "developer";
-}
-
-/**
- * Check if task is for a project manager
+ * Check if task is for a project manager (Green agent)
  */
 export function isProjectManager(task: Task): boolean {
-  return determineRole(task) === "project-manager";
+  return task.addressee.startsWith("project-mgr-");
 }
 
 /**
- * Generate unique job name from task ID and role
+ * Generate unique job name from task ID
  */
 export function generateJobName(task: Task): string {
-  const role = determineRole(task);
-  const rolePrefix = role === "project-manager" ? "pm" : role === "reviewer" ? "rev" : "dev";
-  return `agent-${rolePrefix}-${task.id.slice(0, 8)}`;
+  const prefix = isProjectManager(task) ? "green-agent" : "red-agent";
+  return `${prefix}-${task.id.slice(0, 8)}`;
 }
 
 /**
- * Build environment variables for the unified agent
+ * Create environment variables for a Red agent job
  */
-function buildUnifiedAgentEnv(task: Task, project: Project | null): k8s.V1EnvVar[] {
-  const role = determineRole(task);
-  const env: k8s.V1EnvVar[] = [];
+function buildRedAgentEnv(task: Task): k8s.V1EnvVar[] {
+  return [
+    { name: "TASK_PROMPT", value: task.prompt },
+    ...(task.repo_url ? [{ name: "REPO_URL", value: task.repo_url }] : []),
+    ...(task.branch ? [{ name: "BRANCH", value: task.branch }] : []),
+    { name: "OUTPUT_FORMAT", value: "stream-json" },
+  ];
+}
 
-  // Agent role
-  env.push({ name: "AGENT_ROLE", value: role });
+/**
+ * Create environment variables for a Green agent job
+ */
+function buildGreenAgentEnv(task: Task, project: Project | null): k8s.V1EnvVar[] {
+  const env: k8s.V1EnvVar[] = [
+    { name: "TASK_PROMPT", value: task.prompt },
+    { name: "OUTPUT_FORMAT", value: "stream-json" },
+  ];
 
-  // Runtime configuration
-  if (config.runtimeRepo) {
-    env.push({ name: "RUNTIME_REPO", value: config.runtimeRepo });
+  // Project ID is required for Green
+  if (task.project_id) {
+    env.push({ name: "PROJECT_ID", value: task.project_id });
   }
-  if (config.runtimeBranch) {
-    env.push({ name: "RUNTIME_BRANCH", value: config.runtimeBranch });
-  }
-
-  // Task prompt and ID
-  env.push({ name: "TASK_PROMPT", value: task.prompt });
-  env.push({ name: "TASK_ID", value: task.id });
-  env.push({ name: "OUTPUT_FORMAT", value: "stream-json" });
 
   // Repository info
   const repoUrl = task.repo_url || project?.repo_url;
   if (repoUrl) {
-    env.push({ name: "TARGET_REPO", value: repoUrl });
-    env.push({ name: "REPO_URL", value: repoUrl }); // Legacy
+    env.push({ name: "REPO_URL", value: repoUrl });
   }
 
-  // Branch configuration
+  // Branch: prefer task branch, then integration branch, then default
   const branch = task.branch || project?.integration_branch || project?.default_branch || "main";
-  env.push({ name: "TARGET_BRANCH", value: branch });
-  env.push({ name: "BRANCH", value: branch }); // Legacy
+  env.push({ name: "BRANCH", value: branch });
 
-  if (project?.default_branch) {
-    env.push({ name: "BASE_BRANCH", value: project.default_branch });
-  }
+  // Integration branch (for creating step branches from)
   if (project?.integration_branch) {
     env.push({ name: "INTEGRATION_BRANCH", value: project.integration_branch });
   }
 
-  // Project Manager specific
-  if (role === "project-manager") {
-    if (task.project_id) {
-      env.push({ name: "PROJECT_ID", value: task.project_id });
-    }
-    if (task.triggered_by_task_id) {
-      env.push({ name: "TRIGGERED_BY_TASK_ID", value: task.triggered_by_task_id });
-    }
-    if (task.conversation_id) {
-      env.push({ name: "CONVERSATION_ID", value: task.conversation_id });
-    }
+  // Trigger context
+  if (task.triggered_by_task_id) {
+    env.push({ name: "TRIGGERED_BY_TASK_ID", value: task.triggered_by_task_id });
+  }
+
+  // Conversation ID (for USER_MESSAGE tasks)
+  if (task.conversation_id) {
+    env.push({ name: "CONVERSATION_ID", value: task.conversation_id });
   }
 
   return env;
 }
 
 /**
- * Get the agent image to use
- */
-function getAgentImage(): string {
-  if (config.agentImage) {
-    return config.agentImage;
-  }
-  return "tobiaswaggoner/coding-swarm-agent:latest";
-}
-
-/**
- * Create a K8s Job for a task using the unified agent
+ * Create a K8s Job for a task
+ * Supports both Red (worker) and Green (project manager) agents
  */
 export async function createJob(
   clients: K8sClients,
@@ -121,14 +89,20 @@ export async function createJob(
   jobName: string,
   project?: Project | null
 ): Promise<void> {
-  const role = determineRole(task);
-  const image = getAgentImage();
-  const env = buildUnifiedAgentEnv(task, project || null);
+  const isManager = isProjectManager(task);
+  const agentType = isManager ? "green" : "red";
+  const image = isManager ? config.greenAgentImage : config.jobImage;
 
+  // Build environment variables based on agent type
+  const env = isManager
+    ? buildGreenAgentEnv(task, project || null)
+    : buildRedAgentEnv(task);
+
+  // Green agents need access to both coding-swarm-secrets AND spawning-engine-secrets
   const envFrom: k8s.V1EnvFromSource[] = [
     { secretRef: { name: "coding-swarm-secrets" } },
   ];
-  if (role === "project-manager") {
+  if (isManager) {
     envFrom.push({ secretRef: { name: "spawning-engine-secrets" } });
   }
 
@@ -140,7 +114,7 @@ export async function createJob(
       namespace: config.jobNamespace,
       labels: {
         app: "coding-swarm-agent",
-        "agent-role": role,
+        "agent-type": agentType,
         "task-id": task.id,
         addressee: task.addressee.replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 63),
         ...(task.project_id ? { "project-id": task.project_id.replace(/[^a-zA-Z0-9-]/g, "-").slice(0, 63) } : {}),
@@ -153,7 +127,7 @@ export async function createJob(
         metadata: {
           labels: {
             app: "coding-swarm-agent",
-            "agent-role": role,
+            "agent-type": agentType,
             "task-id": task.id,
           },
         },
@@ -227,12 +201,12 @@ export async function deleteJob(
       undefined,
       undefined,
       undefined,
-      "Background"
+      "Background" // Delete pods in background
     );
   } catch (err: unknown) {
     const error = err as { response?: { statusCode?: number } };
     if (error.response?.statusCode === 404) {
-      return;
+      return; // Already deleted
     }
     throw err;
   }
