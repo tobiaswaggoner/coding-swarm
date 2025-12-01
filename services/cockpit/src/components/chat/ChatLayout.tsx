@@ -1,10 +1,17 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { ArrowLeft, MessageSquarePlus } from "lucide-react";
+import { ArrowLeft, MessageSquarePlus, Menu } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { ConversationList } from "./ConversationList";
 import { ChatMessages } from "./ChatMessages";
 import { ChatInput } from "./ChatInput";
@@ -30,6 +37,7 @@ export function ChatLayout({
   );
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Real-time conversations
   const { conversations } = useRealtimeConversations({
@@ -88,6 +96,7 @@ export function ChatLayout({
       if (res.ok) {
         const newConversation = await res.json();
         setSelectedConversationId(newConversation.id);
+        setMobileMenuOpen(false);
       }
     } catch (error) {
       console.error("Failed to create conversation:", error);
@@ -108,6 +117,11 @@ export function ChatLayout({
     },
     []
   );
+
+  const handleSelectConversation = useCallback((id: string | null) => {
+    setSelectedConversationId(id);
+    setMobileMenuOpen(false);
+  }, []);
 
   const handleSendMessage = useCallback(
     async (content: string) => {
@@ -148,30 +162,61 @@ export function ChatLayout({
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
-      {/* Header */}
-      <div className="flex items-center gap-4 p-4 border-b">
+    <div className="flex flex-col flex-1 overflow-hidden px-4 py-4">
+      {/* Chat container with border */}
+      <div className="flex flex-col flex-1 overflow-hidden border rounded-lg bg-card">
+      {/* Sub-header with navigation and context */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b">
+        {/* Mobile menu button */}
+        <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon" className="md:hidden">
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Open conversations</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-72 p-0">
+            <SheetHeader className="px-4 py-3 border-b">
+              <SheetTitle>Conversations</SheetTitle>
+            </SheetHeader>
+            <ConversationList
+              conversations={conversations}
+              selectedId={selectedConversationId}
+              onSelect={handleSelectConversation}
+              onCreate={handleCreateConversation}
+              onRename={handleRenameConversation}
+            />
+          </SheetContent>
+        </Sheet>
+
+        {/* Back button */}
         <Link href={`/projects/${project.id}`}>
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Project
+          <Button variant="ghost" size="sm" className="gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Back to Project</span>
           </Button>
         </Link>
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold">{project.name}</h1>
+
+        {/* Project and conversation info */}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm font-medium truncate">{project.name}</h1>
           {selectedConversation && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground truncate">
               {selectedConversation.title || "New conversation"}
             </p>
           )}
         </div>
-        <Badge variant="outline">{project.status}</Badge>
+
+        {/* Status badge */}
+        <Badge variant="outline" className="hidden sm:flex">
+          {project.status}
+        </Badge>
       </div>
 
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Conversation sidebar */}
-        <div className="w-64 border-r flex-shrink-0 hidden md:block">
+        {/* Conversation sidebar - desktop only */}
+        <div className="w-64 border-r flex-shrink-0 hidden md:flex md:flex-col">
           <ConversationList
             conversations={conversations}
             selectedId={selectedConversationId}
@@ -206,6 +251,7 @@ export function ChatLayout({
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
