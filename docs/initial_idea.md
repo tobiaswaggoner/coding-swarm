@@ -13,13 +13,13 @@ Maximale Parallelisierung der Entwicklungsarbeit durch autonome AI-Agenten, die 
 | Agent | Rolle | Beschreibung |
 |-------|-------|--------------|
 | 🔴 **Red** | Worker | Führt EINEN Task aus, pusht Branch, meldet Ergebnis. **MERGED NIE!** |
-| 🟢 **Green** | Project Manager | Plant iterativ, erstellt Tasks für Red, führt selbst **KEINE Git-Ops aus** |
+| 🟢 **Green** | Project Manager | Claude-gesteuert via System-Prompt + 4 Skripte. Plant, delegiert, kommuniziert. **KEINE Git-Ops** |
 | 🔵 **Blue** | Executive Assistant | AI-Agent (geplant): Hauptassistent für Epic-Planung, Kommunikation mit User, Entscheidungen |
 | ⚙️ **Engine** | Dispatcher | Einziger persistenter Prozess, spawnt K8s Jobs, triggert Green bei Completion |
-| 🖥️ **Cockpit** | Control UI | Web-Interface für Diagnostik, Monitoring, manuelle Eingriffe, Kommunikation mit Blue |
+| 🖥️ **Cockpit** | Control UI | Next.js Web-Interface: Dashboard, Projekt-Management, Task-Monitoring, Chat |
 
 ```
-🔵 Blue ──Epic──▶ 🟢 Green ──CODE-Task──▶ 🔴 Red
+🔵 Blue ──Epic──▶ 🟢 Green ──WORK-Task──▶ 🔴 Red
                       │                      │
                       │◀──Engine-Trigger─────┘
                       │
@@ -40,6 +40,8 @@ Maximale Parallelisierung der Entwicklungsarbeit durch autonome AI-Agenten, die 
 - Pollt `tasks` Tabelle auf `status = 'pending'`
 - Pro Adressat: max 1 laufender Job (Sequenzierung)
 - Spawnt K8s Job, extrahiert Result aus JSONL-Logs
+- Singleton-Lock via DB-Heartbeat (30s Timeout)
+- Triggert Green Agent bei Worker-Task-Completion
 
 ### Adressaten-Prinzip
 | Adressat | Verhalten |
@@ -51,33 +53,16 @@ Maximale Parallelisierung der Entwicklungsarbeit durch autonome AI-Agenten, die 
 
 ## Datenmodell (Supabase/PostgreSQL)
 
-```sql
-CREATE TABLE tasks (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    addressee       VARCHAR(255) NOT NULL,
-    status          VARCHAR(50) DEFAULT 'pending',  -- pending, running, completed
-    prompt          TEXT NOT NULL,
-    repo_url        TEXT,
-    branch          VARCHAR(255),
-    created_by      VARCHAR(255),
-    created_at      TIMESTAMP DEFAULT NOW(),
-    started_at      TIMESTAMP,
-    completed_at    TIMESTAMP,
-    result          JSONB,      -- {success, summary, pr_url, cost_usd, duration_ms}
-    worker_pod      VARCHAR(255)
-);
+Vollständige Schema-Dokumentation: siehe `docs/database_schema.md`
 
-CREATE TABLE task_logs (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    task_id         UUID REFERENCES tasks(id) ON DELETE CASCADE,
-    jsonl_content   TEXT NOT NULL,  -- Volles JSONL für Diagnose
-    log_size_bytes  INTEGER,
-    created_at      TIMESTAMP DEFAULT NOW()
-);
-
-CREATE INDEX idx_tasks_pending ON tasks(addressee, status) WHERE status = 'pending';
-CREATE INDEX idx_tasks_running ON tasks(addressee) WHERE status = 'running';
-```
+**Tabellen:**
+- `tasks` - Task-Queue mit Status-Tracking
+- `task_logs` - JSONL-Logs für Diagnose
+- `projects` - Projekt-Metadaten und Statistiken
+- `engine_lock` - Singleton-Lock für Spawning Engine
+- `cockpit_users` - GitHub OAuth User-Verwaltung
+- `conversations` - Chat-Konversationen pro Projekt
+- `messages` - Chat-Nachrichten
 
 ---
 
@@ -91,64 +76,109 @@ Diese Regeln gelten für alle Red Agent Tasks:
 4. **Non-Interactive** - Alle CLI-Tools mit `--yes` oder Silent-Flags
 5. **Validierung** - Lint + Build müssen vor Commit erfolgreich sein
 6. **NIEMALS mergen** - Red pusht nur seinen Branch, Merge ist separater Task
-7. **Task-Typen beachten** - CODE, MERGE, REVIEW, FIX, PR, VALIDATE haben unterschiedliche Aufgaben
+7. **Task-Typen beachten** - CODE, MERGE, REVIEW, FIX, PR, VALIDATE, WORK haben unterschiedliche Aufgaben
+
+---
+
+## Green Agent - Funktionsweise
+
+Green ist **Claude-gesteuert** via System-Prompt (`prompts/green/system.md`).
+
+**Erlaubte Aktionen (nur 4 Bash-Skripte):**
+```bash
+./scripts/delegate-to-red.sh "<task>" [branch]  # Arbeit delegieren
+./scripts/send-message.sh "<nachricht>"          # Chat-Nachricht senden
+./scripts/update-plan.sh "<commit-msg>"          # Plan committen
+./scripts/request-clarification.sh "<frage>"     # User fragen + pausieren
+```
+
+**Verboten:**
+- Code lesen (Grep, Read) - verhindert Analyse-Paralyse
+- Code schreiben (Edit, Write) - erzwingt Delegation
+- Direkte Git-Ops - außer Plan-Updates via Skript
+
+**Trigger-Modi:**
+1. `USER_MESSAGE` - User sendet Chat-Nachricht
+2. `TASK_COMPLETED` - Worker-Task abgeschlossen
+3. `INITIAL` - Neues Projekt oder manueller Start
 
 ---
 
 ## Implementierungs-Status
 
-### ✅ Erledigt: Red Agent (Spike-01)
+### ✅ Erledigt: Red Agent
 - Docker-Container funktioniert lokal und in K8s
 - Base-Image: Node 25, Python 3.13, .NET 9, Claude CLI, gh CLI
 - OAuth-Token Authentication via K8s Secrets
 - JSONL Streaming Output (`--output-format stream-json --verbose`)
-- Erfolgreicher Test: NextJS App erstellt, Branch gepusht, PR erstellt
+- Intelligentes Branch-Handling (erstellt + pusht wenn nicht vorhanden)
+- GIT_ASKPASS für sichere Token-Authentifizierung
 
 ### ✅ Erledigt: Spawning Engine
 
 **Features implementiert:**
-- ✅ Poll-Loop: Pending Tasks abrufen
+- ✅ Poll-Loop: Pending Tasks abrufen (5s Intervall)
 - ✅ Adressat-Check: Läuft schon ein Job? → Sequenzierung
-- ✅ K8s Job spawnen mit Task-ID
+- ✅ K8s Job spawnen mit Task-ID und Projekt-Kontext
 - ✅ Job-Completion/-Failure Detection
 - ✅ JSONL-Logs parsen, Result + Logs speichern
-- ✅ Timeout-Handling (Job löschen, Task als failed markieren)
+- ✅ Timeout-Handling (30min Default, Job löschen, Task als failed markieren)
 - ✅ Graceful Shutdown (SIGTERM)
-- ✅ Backpressure via `MAX_PARALLEL_JOBS`
-- ✅ Singleton-Lock (File-basiert)
+- ✅ Backpressure via `MAX_PARALLEL_JOBS` (Default: 10)
+- ✅ Singleton-Lock via DB-Heartbeat (30s Timeout)
+- ✅ Green Agent triggern bei Worker-Task-Completion
+- ✅ Idempotenz-Check (kein doppeltes Green-Triggering)
+- ✅ Projekt-Statistik-Updates (total/completed/failed tasks)
 
 **Architektur:**
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │   Supabase   │◀───▶│   Spawner    │────▶│   K8s Job    │
-│   (Tasks)    │     │ (Singleton)  │     │ (Red Agent)  │
+│   (Tasks)    │     │ (Singleton)  │     │ (Red/Green)  │
 └──────────────┘     └──────────────┘     └──────────────┘
+       │                    │
+       │                    ├── Reaper: Status-Tracking
+       │                    └── Lock: DB-Heartbeat
+       │
+       └── Realtime → Cockpit
 ```
 
-**Verzeichnis:** `spawning-engine/`
+### ✅ Erledigt: Green Agent (Project Manager)
 
-### 🔄 Nächster Schritt: Green Agent (Project Manager)
+**Implementiert:**
+- ✅ Claude-gesteuertes Design (System-Prompt statt hartcodierte Logik)
+- ✅ 4 Bash-Skripte als einzige erlaubte Aktionen
+- ✅ CLI-Tools: create-task, generate-prompt, send-message, pause-project
+- ✅ Kontext-Aggregation: Projekt, Plan, Trigger, Conversation History
+- ✅ Plan-Management via `.ai/plan.md` (Git-basiert)
+- ✅ Multi-stage Docker Build
+- ✅ K8s Job Template mit allen nötigen Secrets
 
-**Ziel:** Ephemerer K8s Job, der event-driven getriggert wird und Red-Tasks orchestriert
+**Design-Prinzipien umgesetzt:**
+- Event-driven, kein Polling - Green wird von Engine bei Task-Completion getriggert
+- Ephemer - Green plant, erstellt Task, stirbt
+- Keine Git-Ops - Außer Plan-Updates via `update-plan.sh`
+- Delegation-first - Green darf keinen Code lesen/schreiben
 
-**Design-Prinzipien:**
-- **Event-driven, kein Polling** - Green wird von Engine bei Task-Completion getriggert
-- **Ephemer** - Green plant, erstellt Task, stirbt
-- **Keine Git-Ops** - Auch Merge und PR-Erstellung laufen über Red-Tasks
-- **Task-Typen:** CODE → MERGE → (nächster CODE) → ... → PR
+### ✅ Erledigt: Cockpit (Control UI)
 
-**Workflow pro Schritt:**
-```
-Green erstellt CODE-Task → Red implementiert → Engine triggert Green
-                                                      ↓
-Green erstellt MERGE-Task → Red merged → Engine triggert Green
-                                                      ↓
-                                          Green erstellt nächsten CODE-Task
-```
+**Implementierte Features:**
+- ✅ Dashboard mit Projekt-Übersicht und System-Status
+- ✅ Projekt-Management (CRUD mit Soft-Delete)
+- ✅ GitHub OAuth mit Zwei-Stufen-Autorisierung (pending → authorized)
+- ✅ Task-Monitoring mit Echtzeit-Updates (Supabase Realtime)
+- ✅ Task-Detail mit vollständigen Logs und Agent-Typ-Erkennung
+- ✅ Chat-Interface mit Multi-Conversation Support
+- ✅ System-Status (Engine-Heartbeat, Pod-Count, DB-Verbindung)
 
-**Detaillierte Dokumentation:** Siehe `docs/green-layer-design.md` und `docs/scenario.md`
+**Technologie:**
+- Next.js 16 mit App Router
+- React 19 + Tailwind CSS v4
+- RadixUI Komponenten
+- NextAuth v5 (GitHub OAuth)
+- Supabase Realtime für Live-Updates
 
-### Später: Blue Agent (Executive Assistant)
+### 🔄 Geplant: Blue Agent (Executive Assistant)
 
 **Ziel:** AI-Agent als Hauptassistent, der zwischen User und Green Layer vermittelt
 
@@ -158,18 +188,12 @@ Green erstellt MERGE-Task → Red merged → Engine triggert Green
 - Entscheidungen bei Unklarheiten
 - PR-Review Koordination
 
-### Cockpit (Control UI)
+### 🔄 Geplant: Weitere Cockpit-Features
 
-**Ziel:** Web-Interface für Kontrolle und Überwachung des Gesamtsystems
-
-**Geplante Features:**
-- System-Diagnostik und Monitoring
-- Task-Historie und Logs
-- Epic-Einreichung (initial direkt, später via Blue)
+- Pause/Resume Controls für Projekte
+- Kill-Funktion für laufende Jobs
 - PR-Review Interface
-- Kommunikationskanal zum Blue Agent
-
-**Technologie:** Next.js, Tailwind CSS, Supabase Realtime
+- Erweiterte Diagnostik
 
 ---
 
@@ -177,7 +201,7 @@ Green erstellt MERGE-Task → Red merged → Engine triggert Green
 
 | Entscheidung | Begründung |
 |--------------|------------|
-| PostgreSQL/Supabase | Persistenz, Debugging, Multi-Cluster |
+| PostgreSQL/Supabase | Persistenz, Debugging, Multi-Cluster, Realtime |
 | Claude Code CLI | RAG, File-Search, Syntax-Checks out-of-the-box |
 | OAuth statt API-Key | Subscription-Billing, Kostenkontrolle |
 | Ephemere Agents | Keine Zombie-Prozesse, sauberer State |
@@ -188,3 +212,9 @@ Green erstellt MERGE-Task → Red merged → Engine triggert Green
 | Engine triggert Green | Zentraler Dispatcher, keine verlorenen Events |
 | `.ai/` Verzeichnis | Plan + Kontext, Green darf committen |
 | Step-Branches löschen | Nach erfolgreichem Merge automatisch entfernen |
+| Claude-gesteuerter Green | Flexibler als hartcodierte Logik, einfacher anzupassen |
+| System-Prompt Ansatz | Verhalten via Prompt definiert, nicht via Code |
+| Singleton-Lock via DB | Robust, funktioniert über Node-Restarts hinweg |
+| Supabase Realtime | Live-Updates ohne Polling im UI |
+| Multi-Conversation | Parallele Diskussionen pro Projekt möglich |
+| Soft-Delete | Projekte archivierbar, Daten bleiben erhalten |

@@ -15,10 +15,10 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ 🖥️ Cockpit - Control & Monitoring UI (Next.js)              │
+│ 🖥️ Cockpit - Control & Monitoring UI (Next.js 16)           │
 │ services/cockpit/                                           │
-│ Diagnostik, Monitoring, Epic-Einreichung, PR-Review         │
-│ Kommunikationskanal zum Blue Agent (später)                 │
+│ Dashboard, Projekt-Management, Task-Monitoring, Chat-UI     │
+│ GitHub OAuth, Echtzeit-Updates via Supabase Realtime        │
 │ NICHT der Blue Layer - sondern das User Interface!          │
 └─────────────────────────────────────────────────────────────┘
                               ↓
@@ -35,20 +35,21 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
 │ Pollt tasks-Tabelle → Spawnt K8s Jobs → Trackt Status       │
 │ Triggert Green bei Task-Completion (Event-driven!)          │
 │ Verwaltet Concurrency via "addressee" (1 Job pro Addressee) │
+│ Singleton-Lock via DB-Heartbeat (30s Timeout)               │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ 🟢 Green Layer - Project Manager (Ephemerer K8s Job)         │
 │ services/green-agent/                                       │
-│ Event-driven: Wird bei Task-Completion getriggert           │
-│ Plant → Erstellt Task → Stirbt (kein Polling!)              │
-│ Führt selbst KEINE Git-Ops aus (alles via Red-Tasks)        │
+│ Claude-gesteuert via System-Prompt + 4 Bash-Skripte         │
+│ Delegiert Arbeit, pflegt Plan, kommuniziert mit User        │
+│ Führt selbst KEINE Git-Ops aus (außer .ai/plan.md)          │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ 🔴 Red Layer - Worker Agent (Ephemerer K8s Job)              │
 │ services/red-agent/                                         │
-│ Task-Typen: CODE, MERGE, REVIEW, FIX, PR, VALIDATE          │
+│ Task-Typen: CODE, MERGE, REVIEW, FIX, PR, VALIDATE, WORK    │
 │ MERGED NIE direkt - Merge ist separater Task!               │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -66,38 +67,78 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
 coding-swarm/
 ├── services/                    # Alle Services
 │   ├── red-agent/              # Worker Agent (CODE, MERGE, REVIEW, etc.)
-│   │   ├── entrypoint.sh       # Agent-Lifecycle
+│   │   ├── entrypoint.sh       # Agent-Lifecycle (Clone, Branch, Claude CLI)
 │   │   ├── Dockerfile
 │   │   └── k8s/                # Job-Manifeste
-│   ├── green-agent/            # Project Manager
-│   │   ├── src/                # TypeScript (index.ts, db/, git/, plan/, tasks/, decisions/, prompts/)
-│   │   ├── entrypoint.sh
+│   │
+│   ├── green-agent/            # Project Manager (Claude-gesteuert)
+│   │   ├── src/                # TypeScript
+│   │   │   ├── config.ts       # Umgebungs-Konfiguration
+│   │   │   ├── db/supabase.ts  # Datenbank-Client
+│   │   │   └── cli/            # CLI-Tools für Claude
+│   │   │       ├── create-task.ts      # WORK-Task erstellen
+│   │   │       ├── generate-prompt.ts  # Prompt aus Kontext bauen
+│   │   │       ├── send-message.ts     # Chat-Nachricht senden
+│   │   │       └── pause-project.ts    # Projekt pausieren
+│   │   ├── scripts/            # Die 4 erlaubten Bash-Skripte
+│   │   │   ├── delegate-to-red.sh      # Arbeit delegieren
+│   │   │   ├── send-message.sh         # Nachricht senden
+│   │   │   ├── update-plan.sh          # Plan committen
+│   │   │   └── request-clarification.sh # User fragen + pausieren
+│   │   ├── entrypoint.sh       # Setup + Claude CLI Aufruf
 │   │   ├── Dockerfile
 │   │   └── k8s/
-│   ├── cockpit/               # Control & Monitoring UI (Next.js)
-│   │   └── README.md
+│   │
+│   ├── cockpit/                # Control & Monitoring UI (Next.js 16)
+│   │   ├── src/
+│   │   │   ├── app/            # Next.js App Router
+│   │   │   │   ├── page.tsx              # Dashboard
+│   │   │   │   ├── admin/projects/       # Projekt-CRUD
+│   │   │   │   ├── projects/[id]/        # Projekt-Detail
+│   │   │   │   │   ├── page.tsx          # Task-Liste
+│   │   │   │   │   ├── chat/page.tsx     # Chat-Interface
+│   │   │   │   │   └── tasks/[taskId]/   # Task-Detail + Logs
+│   │   │   │   └── api/                  # API Routes
+│   │   │   ├── components/     # React-Komponenten
+│   │   │   │   ├── chat/       # Chat-UI Komponenten
+│   │   │   │   └── ui/         # RadixUI Basis-Komponenten
+│   │   │   ├── hooks/          # Echtzeit-Hooks (Supabase)
+│   │   │   └── lib/            # Utilities, DB-Client
+│   │   └── auth.ts             # NextAuth GitHub OAuth
+│   │
 │   └── spawning-engine/        # K8s Job Orchestrator
-│       ├── src/                # TypeScript (index.ts, db/, k8s/, engine/)
+│       ├── src/                # TypeScript
+│       │   ├── index.ts        # Main Loop + Shutdown
+│       │   ├── config.ts       # Umgebungs-Konfiguration
+│       │   ├── logger.ts       # Strukturiertes Logging
+│       │   ├── db/supabase.ts  # Datenbank-Client
+│       │   ├── k8s/            # K8s Integration
+│       │   │   ├── client.ts   # Cluster-Erkennung
+│       │   │   ├── jobs.ts     # Job-Erstellung
+│       │   │   └── logs.ts     # Log-Extraktion
+│       │   └── engine/         # Kernlogik
+│       │       ├── spawner.ts  # Pending Tasks → Jobs
+│       │       ├── reaper.ts   # Running Tasks → Completion
+│       │       └── lock.ts     # Singleton-Lock (DB-Heartbeat)
 │       ├── Dockerfile
 │       └── k8s/                # Deployment + RBAC
 │
 ├── infrastructure/              # Infrastruktur-Komponenten
-│   ├── base-image/             # Docker Base Image (Node, Python, .NET, Claude CLI)
-│   │   └── Dockerfile
-│   └── migrations/             # SQL-Migrationen für Supabase
+│   ├── base-image/             # Docker Base Image
+│   │   └── Dockerfile          # Node 25, Python 3, .NET 9, Claude CLI
+│   └── migrations/             # SQL-Migrationen für Supabase (001-008)
 │
 ├── prompts/                     # Externalisierte Prompt-Templates
-│   ├── green/                  # Green Agent Prompts
-│   └── README.md               # Platzhalter-Dokumentation
+│   └── green/                  # Green Agent System-Prompt
+│       └── system.md           # Deutsche Anweisungen für Claude
 │
 ├── scripts/                     # Build & Deploy Skripte
 │   ├── build-and-push.sh       # Alle Images bauen + pushen
 │   └── refresh-k8s.sh          # K8s Deployments aktualisieren
 │
 ├── docs/                        # Architektur-Dokumentation
-│   ├── initial_idea.md
-│   ├── green-layer-design.md
-│   └── scenario.md
+│   ├── initial_idea.md         # Design-Dokument
+│   └── database_schema.md      # Schema-Referenz
 │
 └── CLAUDE.md
 ```
@@ -150,6 +191,15 @@ LOG_LEVEL="debug" \
 npx tsx src/index.ts
 ```
 
+### Cockpit lokal starten
+
+```bash
+cd services/cockpit
+npm install
+npm run dev
+# Öffne http://localhost:3000
+```
+
 ### Kubernetes Initiales Setup
 
 ```bash
@@ -191,25 +241,95 @@ docker run \
 5. **Kein Conversation-Modus** - Agents führen einmal aus und terminieren (Erfolg oder Fehler, kein Hin-und-Her)
 6. **Red merged NIE** - Merge ist immer ein separater Task (für Review und Konflikt-Isolation)
 7. **Green führt keine Git-Ops aus** - Außer für `.ai/plan.md` (Plan-Updates darf Green committen)
+8. **Green darf keinen Code lesen** - Verhindert Analyse-Paralyse, erzwingt Delegation
+
+## Task-Typen
+
+| Typ | Agent | Beschreibung |
+|-----|-------|--------------|
+| `CODE` | Red | Feature implementieren oder Bug fixen |
+| `MERGE` | Red | Feature-Branch in Integration-Branch mergen |
+| `REVIEW` | Red | Code Review durchführen |
+| `FIX` | Red | Fehler aus Review/Test beheben |
+| `PR` | Red | Pull Request erstellen |
+| `VALIDATE` | Red | Lint, Build, Tests ausführen |
+| `WORK` | Red | Generischer Task (von Green delegiert) |
+| `USER_MESSAGE` | Green | User-Nachricht verarbeiten (Chat) |
 
 ## Agent Umgebungsvariablen
+
+### Red Agent
 
 | Variable | Pflicht | Beschreibung |
 |----------|---------|--------------|
 | `CLAUDE_CODE_OAUTH_TOKEN` | Ja | Claude Subscription OAuth Token |
 | `GITHUB_TOKEN` | Ja | GitHub PAT für Git-Operationen und gh CLI |
-| `REPO_URL` | Ja | Zu clonendes Repository |
+| `REPO_URL` | Nein | Zu clonendes Repository |
 | `TASK_PROMPT` | Ja | Task-Beschreibung für Claude Code CLI |
-| `BRANCH` | Nein | Auszucheckender Branch (Standard: main) |
+| `BRANCH` | Nein | Auszucheckender Branch (erstellt wenn nicht vorhanden) |
 | `GIT_USER_EMAIL` | Nein | Committer E-Mail |
 | `GIT_USER_NAME` | Nein | Committer Name |
 | `OUTPUT_FORMAT` | Nein | `text`, `json`, oder `stream-json` (Standard: stream-json) |
-| `PROMPTS_DIR` | Nein | Pfad zu Prompt-Templates (Standard: /prompts/green, nur Green Agent) |
+
+### Green Agent
+
+| Variable | Pflicht | Beschreibung |
+|----------|---------|--------------|
+| `CLAUDE_CODE_OAUTH_TOKEN` | Ja | Claude Subscription OAuth Token |
+| `GITHUB_TOKEN` | Ja | GitHub PAT für Git-Operationen |
+| `SUPABASE_URL` | Ja | Supabase Projekt-URL |
+| `SUPABASE_KEY` | Ja | Supabase Service Key |
+| `PROJECT_ID` | Ja | Projekt-Identifier |
+| `REPO_URL` | Nein | Repository URL |
+| `BRANCH` | Nein | Auszucheckender Branch (Standard: main) |
+| `INTEGRATION_BRANCH` | Nein | Ziel-Branch für Red-Tasks |
+| `TASK_PROMPT` | Nein | Initiale Task-Beschreibung (für neue Projekte) |
+| `TRIGGERED_BY_TASK_ID` | Nein | ID des auslösenden Tasks |
+| `CONVERSATION_ID` | Nein | Konversations-Kontext (für USER_MESSAGE) |
+
+### Spawning Engine
+
+| Variable | Pflicht | Beschreibung |
+|----------|---------|--------------|
+| `SUPABASE_URL` | Ja | Supabase Projekt-URL |
+| `SUPABASE_KEY` | Ja | Supabase Service Key |
+| `POLL_INTERVAL_MS` | Nein | Poll-Intervall (Standard: 5000) |
+| `JOB_TIMEOUT_MINUTES` | Nein | Job-Timeout (Standard: 30) |
+| `JOB_NAMESPACE` | Nein | K8s Namespace (Standard: coding-swarm) |
+| `JOB_IMAGE` | Nein | Red Agent Image |
+| `GREEN_AGENT_IMAGE` | Nein | Green Agent Image |
+| `MAX_PARALLEL_JOBS` | Nein | Max. parallele Jobs (Standard: 10) |
+| `LOG_LEVEL` | Nein | Log-Level (Standard: info) |
+
+## Green Agent - Die 4 erlaubten Skripte
+
+Green Agent ist Claude-gesteuert und darf **nur** diese 4 Bash-Skripte ausführen:
+
+```bash
+# 1. Arbeit an Red delegieren
+./scripts/delegate-to-red.sh "<task-beschreibung>" [branch]
+
+# 2. Nachricht an User senden (Chat)
+./scripts/send-message.sh "<nachricht>"
+
+# 3. Plan aktualisieren (nach Edit von .ai/plan.md)
+./scripts/update-plan.sh "<commit-message>"
+
+# 4. User um Klärung bitten (pausiert Projekt)
+./scripts/request-clarification.sh "<frage>"
+```
+
+**Verboten für Green:**
+- Code lesen (Grep, Read)
+- Code schreiben (Edit, Write)
+- Direkte Git-Befehle (außer via Skript)
+- Direkte Task-Erstellung in DB
 
 ## Zentrale Design-Entscheidungen
 
 - **PostgreSQL statt Redis** - Persistenter State für Debugging; einfache manuelle SQL-Intervention
 - **Addressee-basierte Concurrency** - Gleicher Addressee = sequentiell; unterschiedlich = parallel
+- **Claude-gesteuerter Green** - System-Prompt definiert Verhalten, keine hartcodierte Logik
 - **Iterative Planung** - Green Agent plant nur nächsten Schritt, nicht ganzes Epic im Voraus
 - **Quality Gates als Tasks** - Review/Test sind normale Tasks mit anderen Prompts
 - **Pläne in Git** - `.ai/plan.md` im Repo gespeichert, nicht in Datenbank (Single Source of Truth)
@@ -217,9 +337,23 @@ docker run \
 - **Step-Branches löschen** - Nach erfolgreichem Merge automatisch entfernen
 - **Event-driven statt Polling** - Green wird bei Task-Completion getriggert, keine Idle-Kosten
 - **Merge als separater Task** - Ermöglicht Review vor Integration, Konflikt-Isolation
-- **Task-Typen** - CODE, MERGE, REVIEW, FIX, PR, VALIDATE für klare Trennung der Verantwortlichkeiten
+- **Task-Typen** - CODE, MERGE, REVIEW, FIX, PR, VALIDATE, WORK, USER_MESSAGE
 - **PR via Red-Task** - Konsistentes Modell, Green führt selbst keine Git-Ops aus
-- **Externalisierte Prompts** - Alle Prompts in `prompts/` Verzeichnis, mountbar via K8s ConfigMap für Änderungen ohne Rebuild
+- **Externalisierte Prompts** - Alle Prompts in `prompts/` Verzeichnis
 - **GIT_ASKPASS Auth** - SOTA Git-Authentifizierung ohne Token in URLs (verhindert Log-Leaks)
 - **Multi-Stage Docker Builds** - Schnellere Iteration durch optimierte Layer-Caching
 - **Service-orientierte Struktur** - Klare Trennung in `services/` und `infrastructure/`
+- **Singleton-Lock via DB** - Spawning Engine mit Heartbeat-basiertem Lock (30s Timeout)
+- **Echtzeit-Updates** - Cockpit nutzt Supabase Realtime für Tasks, Logs, Chat
+- **Multi-Conversation Support** - Mehrere Chat-Konversationen pro Projekt
+- **Soft-Delete für Projekte** - Archivierung statt Löschung
+
+## Cockpit Features (Implementiert)
+
+- **Dashboard** - Projekt-Übersicht mit laufenden Tasks und System-Status
+- **Projekt-Management** - CRUD für Projekte mit Soft-Delete
+- **Task-Monitoring** - Echtzeit-Task-Liste gruppiert nach Status
+- **Task-Detail** - Vollständige Logs, Result, Agent-Typ-Erkennung
+- **Chat-Interface** - Multi-Conversation Support mit Green Agent
+- **GitHub OAuth** - Zwei-Stufen-Autorisierung (pending → authorized)
+- **System-Status** - Engine-Heartbeat, Pod-Count, Supabase-Verbindung
