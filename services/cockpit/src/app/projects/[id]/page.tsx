@@ -1,40 +1,75 @@
 import { Header } from "@/components/Header";
+import { RealtimeTaskList } from "@/components/RealtimeTaskList";
 import { createServerClient } from "@/lib/supabase";
-import type { Project } from "@/lib/database.types";
+import type { Project, Task } from "@/lib/database.types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Construction } from "lucide-react";
+import {
+  ArrowLeft,
+  GitBranch,
+  Clock,
+  CheckCircle,
+  XCircle,
+  ExternalLink,
+} from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 
 interface Props {
   params: Promise<{ id: string }>;
 }
 
-async function getProject(id: string): Promise<Project | null> {
+async function getProjectWithTasks(
+  id: string
+): Promise<{ project: Project; tasks: Task[] } | null> {
   const supabase = createServerClient();
 
-  const { data: project, error } = await supabase
+  const { data: project, error: projectError } = await supabase
     .from("projects")
     .select("*")
     .eq("id", id)
     .single();
 
-  if (error || !project) {
+  if (projectError || !project) {
     return null;
   }
 
-  return project as Project;
+  // Get all tasks for this project, ordered by created_at desc
+  const { data: tasks, error: tasksError } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("project_id", id)
+    .order("created_at", { ascending: false });
+
+  if (tasksError) {
+    console.error("Failed to fetch tasks:", tasksError);
+  }
+
+  return {
+    project: project as Project,
+    tasks: (tasks as Task[]) || [],
+  };
 }
+
+const statusVariants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  active: "default",
+  paused: "secondary",
+  awaiting_review: "outline",
+  completed: "outline",
+  failed: "destructive",
+};
 
 export default async function ProjectPage({ params }: Props) {
   const { id } = await params;
-  const project = await getProject(id);
+  const data = await getProjectWithTasks(id);
 
-  if (!project) {
+  if (!data) {
     notFound();
   }
+
+  const { project, tasks } = data;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -42,6 +77,7 @@ export default async function ProjectPage({ params }: Props) {
 
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-4 py-8">
+          {/* Back button */}
           <div className="mb-6">
             <Button variant="ghost" size="sm" asChild>
               <Link href="/" className="gap-2">
@@ -51,58 +87,91 @@ export default async function ProjectPage({ params }: Props) {
             </Button>
           </div>
 
-          <div className="mb-8 flex items-center justify-between">
+          {/* Project header */}
+          <div className="mb-8 flex items-start justify-between">
             <div>
               <h1 className="text-2xl font-bold text-foreground">{project.name}</h1>
-              <p className="mt-1 text-sm text-muted-foreground">{project.repo_url}</p>
+              <a
+                href={project.repo_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+              >
+                {project.repo_url}
+                <ExternalLink className="h-3 w-3" />
+              </a>
             </div>
-            <Badge variant="secondary">
-              {project.status}
+            <Badge variant={statusVariants[project.status] || "secondary"}>
+              {project.status.replace("_", " ")}
             </Badge>
           </div>
 
-          {/* Placeholder for Phase 2 */}
-          <Card className="mb-8">
-            <CardContent className="flex flex-col items-center justify-center p-12 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <Construction className="h-8 w-8 text-primary" />
-              </div>
-              <h2 className="mt-4 text-lg font-medium text-foreground">
-                Project Detail View - Coming Soon
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Task history, log visualization, and controls will be implemented
-                in Phase 2
-              </p>
-            </CardContent>
-          </Card>
+          {/* Epic */}
+          {project.current_epic && (
+            <Card className="mb-8">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Current Epic
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-foreground">{project.current_epic}</p>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Basic project info */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <InfoCard
-              title="Epic"
-              value={project.current_epic || "No epic defined"}
+          {/* Stats */}
+          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              icon={CheckCircle}
+              label="Completed"
+              value={project.completed_tasks}
+              total={project.total_tasks}
+              color="text-green-500"
             />
-            <InfoCard
-              title="Progress"
-              value={`${project.completed_tasks}/${project.total_tasks} tasks`}
+            <StatCard
+              icon={XCircle}
+              label="Failed"
+              value={project.failed_tasks}
+              color="text-destructive"
             />
-            <InfoCard
-              title="Failed Tasks"
-              value={String(project.failed_tasks)}
-            />
-            <InfoCard
-              title="Integration Branch"
+            <StatCard
+              icon={GitBranch}
+              label="Branch"
               value={project.integration_branch || project.default_branch}
+              mono
             />
-            <InfoCard
-              title="Last Activity"
-              value={new Date(project.last_activity).toLocaleString()}
+            <StatCard
+              icon={Clock}
+              label="Last Activity"
+              value={formatDistanceToNow(new Date(project.last_activity), { addSuffix: true })}
             />
-            <InfoCard
-              title="Created"
-              value={new Date(project.created_at).toLocaleString()}
-            />
+          </div>
+
+          {/* PR Link */}
+          {project.pr_url && (
+            <Card className="mb-8 border-primary/50 bg-primary/5">
+              <CardContent className="flex items-center justify-between p-4">
+                <div>
+                  <p className="text-sm font-medium">Pull Request</p>
+                  <p className="text-sm text-muted-foreground">
+                    PR #{project.pr_number} is ready for review
+                  </p>
+                </div>
+                <Button asChild>
+                  <a href={project.pr_url} target="_blank" rel="noopener noreferrer">
+                    View PR
+                    <ExternalLink className="ml-2 h-4 w-4" />
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Task History */}
+          <div>
+            <h2 className="mb-4 text-lg font-semibold text-foreground">Task History</h2>
+            <RealtimeTaskList projectId={id} initialTasks={tasks} />
           </div>
         </div>
       </main>
@@ -110,14 +179,34 @@ export default async function ProjectPage({ params }: Props) {
   );
 }
 
-function InfoCard({ title, value }: { title: string; value: string }) {
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  total,
+  color,
+  mono = false,
+}: {
+  icon: typeof Clock;
+  label: string;
+  value: string | number;
+  total?: number;
+  color?: string;
+  mono?: boolean;
+}) {
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-foreground">{value}</p>
+      <CardContent className="flex items-center gap-3 p-4">
+        <Icon className={`h-5 w-5 shrink-0 ${color || "text-muted-foreground"}`} />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className={`truncate text-lg font-semibold ${mono ? "font-mono text-sm" : ""}`}>
+            {value}
+            {total !== undefined && (
+              <span className="text-sm font-normal text-muted-foreground">/{total}</span>
+            )}
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
