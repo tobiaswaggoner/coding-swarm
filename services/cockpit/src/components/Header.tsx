@@ -1,4 +1,5 @@
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
+import { signOutAction } from "@/lib/actions";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,9 +21,14 @@ export async function Header() {
               <Link href="/">Dashboard</Link>
             </Button>
             {session?.user?.status === "authorized" && (
-              <Button variant="ghost" asChild>
-                <Link href="/admin/users">Users</Link>
-              </Button>
+              <>
+                <Button variant="ghost" asChild>
+                  <Link href="/admin/projects">Projects</Link>
+                </Button>
+                <Button variant="ghost" asChild>
+                  <Link href="/admin/users">Users</Link>
+                </Button>
+              </>
             )}
           </nav>
         </div>
@@ -42,12 +48,7 @@ export async function Header() {
                   {session.user.name}
                 </span>
               </div>
-              <form
-                action={async () => {
-                  "use server";
-                  await signOut({ redirectTo: "/login" });
-                }}
-              >
+              <form action={signOutAction}>
                 <Button variant="outline" size="sm">
                   Sign out
                 </Button>

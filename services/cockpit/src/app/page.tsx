@@ -13,6 +13,7 @@ async function getProjects(): Promise<Project[]> {
   const { data: projects, error } = await supabase
     .from("projects")
     .select("*")
+    .eq("deleted", false)
     .order("last_activity", { ascending: false });
 
   if (error) {

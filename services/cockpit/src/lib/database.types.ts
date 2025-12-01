@@ -57,6 +57,10 @@ export interface Project {
   failed_tasks: number;
   pr_url: string | null;
   pr_number: number | null;
+  // Soft delete fields
+  deleted: boolean;
+  deleted_at: string | null;
+  deleted_by: string | null;
 }
 
 export interface EngineLock {
@@ -97,12 +101,15 @@ export interface Database {
       };
       projects: {
         Row: Project;
-        Insert: Omit<Project, "created_at" | "last_activity" | "total_tasks" | "completed_tasks" | "failed_tasks"> & {
+        Insert: Omit<Project, "created_at" | "last_activity" | "total_tasks" | "completed_tasks" | "failed_tasks" | "deleted" | "deleted_at" | "deleted_by"> & {
           created_at?: string;
           last_activity?: string;
           total_tasks?: number;
           completed_tasks?: number;
           failed_tasks?: number;
+          deleted?: boolean;
+          deleted_at?: string;
+          deleted_by?: string;
         };
         Update: Partial<Project>;
       };
