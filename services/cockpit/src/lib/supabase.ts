@@ -8,8 +8,16 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Server-side client with service role (for protected operations)
 export function createServerClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  return createClient<Database>(supabaseUrl, supabaseServiceKey);
+  // Debug: Check if env vars are loaded
+  if (!url || !key) {
+    console.error("Supabase env vars missing:", {
+      url: url ? "SET" : "MISSING",
+      key: key ? "SET" : "MISSING",
+    });
+  }
+
+  return createClient<Database>(url || "", key || "");
 }

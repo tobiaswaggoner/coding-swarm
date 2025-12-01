@@ -16,7 +16,7 @@ async function getProjects(): Promise<Project[]> {
     .order("last_activity", { ascending: false });
 
   if (error) {
-    console.error("Error fetching projects:", error);
+    console.error("Error fetching projects:", error.message, error.code, error.details);
     return [];
   }
 
@@ -32,7 +32,7 @@ async function getRunningTasksByProject(): Promise<Record<string, number>> {
     .eq("status", "running");
 
   if (error) {
-    console.error("Error fetching running tasks:", error);
+    console.error("Error fetching running tasks:", error.message, error.code, error.details);
     return {};
   }
 
