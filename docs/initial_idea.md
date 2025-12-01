@@ -14,8 +14,9 @@ Maximale Parallelisierung der Entwicklungsarbeit durch autonome AI-Agenten, die 
 |-------|-------|--------------|
 | 🔴 **Red** | Worker | Führt EINEN Task aus, pusht Branch, meldet Ergebnis. **MERGED NIE!** |
 | 🟢 **Green** | Project Manager | Plant iterativ, erstellt Tasks für Red, führt selbst **KEINE Git-Ops aus** |
-| 🔵 **Blue** | Executive | UI für Epics, Monitoring, manuelle Eingriffe, PR-Review |
+| 🔵 **Blue** | Executive Assistant | AI-Agent (geplant): Hauptassistent für Epic-Planung, Kommunikation mit User, Entscheidungen |
 | ⚙️ **Engine** | Dispatcher | Einziger persistenter Prozess, spawnt K8s Jobs, triggert Green bei Completion |
+| 🖥️ **Cockpit** | Control UI | Web-Interface für Diagnostik, Monitoring, manuelle Eingriffe, Kommunikation mit Blue |
 
 ```
 🔵 Blue ──Epic──▶ 🟢 Green ──CODE-Task──▶ 🔴 Red
@@ -147,7 +148,28 @@ Green erstellt MERGE-Task → Red merged → Engine triggert Green
 
 **Detaillierte Dokumentation:** Siehe `docs/green-layer-design.md` und `docs/scenario.md`
 
-### Später: Blue UI (Executive Dashboard)
+### Später: Blue Agent (Executive Assistant)
+
+**Ziel:** AI-Agent als Hauptassistent, der zwischen User und Green Layer vermittelt
+
+**Geplante Aufgaben:**
+- Epic-Verständnis und -Planung auf hoher Ebene
+- Kommunikation mit User über Cockpit
+- Entscheidungen bei Unklarheiten
+- PR-Review Koordination
+
+### Cockpit (Control UI)
+
+**Ziel:** Web-Interface für Kontrolle und Überwachung des Gesamtsystems
+
+**Geplante Features:**
+- System-Diagnostik und Monitoring
+- Task-Historie und Logs
+- Epic-Einreichung (initial direkt, später via Blue)
+- PR-Review Interface
+- Kommunikationskanal zum Blue Agent
+
+**Technologie:** Next.js, Tailwind CSS, Supabase Realtime
 
 ---
 

@@ -11,18 +11,26 @@ Diese Datei bietet Orientierung für Claude Code (claude.ai/code) bei der Arbeit
 
 Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, asynchrone Task-Ausführung über ephemere Kubernetes-Jobs. Das System nutzt Claude Code CLI im Headless-Modus zur autonomen Ausführung von Coding-Aufgaben.
 
-## Architektur (3-Schichten-Modell)
+## Architektur (4-Schichten-Modell)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Blue Layer (Geplant) - Executive UI (Next.js)              │
-│ services/blue-ui/                                           │
-│ User reicht Epics ein → Schreibt in PostgreSQL              │
-│ PR-Review → Änderungswünsche → Triggert Green               │
+│ 🖥️ Cockpit - Control & Monitoring UI (Next.js)              │
+│ services/cockpit/                                           │
+│ Diagnostik, Monitoring, Epic-Einreichung, PR-Review         │
+│ Kommunikationskanal zum Blue Agent (später)                 │
+│ NICHT der Blue Layer - sondern das User Interface!          │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ Spawning Engine - Der EINZIGE persistente Prozess           │
+│ 🔵 Blue Layer (Geplant) - Executive Assistant (AI Agent)    │
+│ services/blue-agent/ (noch nicht implementiert)             │
+│ Hauptassistent: Epic-Verständnis, User-Kommunikation        │
+│ Vermittelt zwischen User und Green Layer                    │
+└─────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────┐
+│ ⚙️ Spawning Engine - Der EINZIGE persistente Prozess         │
 │ services/spawning-engine/                                   │
 │ Pollt tasks-Tabelle → Spawnt K8s Jobs → Trackt Status       │
 │ Triggert Green bei Task-Completion (Event-driven!)          │
@@ -30,7 +38,7 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ Green Layer - Project Manager (Ephemerer K8s Job)           │
+│ 🟢 Green Layer - Project Manager (Ephemerer K8s Job)         │
 │ services/green-agent/                                       │
 │ Event-driven: Wird bei Task-Completion getriggert           │
 │ Plant → Erstellt Task → Stirbt (kein Polling!)              │
@@ -38,7 +46,7 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ Red Layer - Worker Agent (Ephemerer K8s Job)                │
+│ 🔴 Red Layer - Worker Agent (Ephemerer K8s Job)              │
 │ services/red-agent/                                         │
 │ Task-Typen: CODE, MERGE, REVIEW, FIX, PR, VALIDATE          │
 │ MERGED NIE direkt - Merge ist separater Task!               │
@@ -47,6 +55,7 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
 
 **Kernprinzipien:**
 - Alle Agents sind ephemere K8s Jobs. Nur die Spawning Engine ist persistent.
+- **Cockpit ≠ Blue Layer:** Das Cockpit ist das User Interface, Blue wird ein AI-Agent
 - Green führt keine Git-Operationen aus - **außer** für `.ai/plan.md` (Plan-Updates)
 - Red merged nie selbstständig - Merge ist ein separater Task für Review-Möglichkeit
 - Das `.ai/` Verzeichnis ist der Projekt-Kontext (Plan, später Specs, etc.)
@@ -65,7 +74,7 @@ coding-swarm/
 │   │   ├── entrypoint.sh
 │   │   ├── Dockerfile
 │   │   └── k8s/
-│   ├── blue-ui/                # Executive UI (Next.js) - GEPLANT
+│   ├── cockpit/               # Control & Monitoring UI (Next.js)
 │   │   └── README.md
 │   └── spawning-engine/        # K8s Job Orchestrator
 │       ├── src/                # TypeScript (index.ts, db/, k8s/, engine/)
