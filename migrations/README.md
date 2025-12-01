@@ -7,6 +7,8 @@ Manuelle SQL-Migrationen für das Autonomous Coding Swarm Schema.
 | Datei | Beschreibung |
 |-------|--------------|
 | `001_initial_schema.sql` | Basis-Schema: `schema_migrations`, `tasks`, `task_logs` |
+| `002_engine_lock.sql` | Singleton-Lock für Spawning Engine |
+| `003_green_layer.sql` | Green Layer: `projects` Tabelle + `tasks` Erweiterungen |
 
 ## Ausführung via Supabase Dashboard
 

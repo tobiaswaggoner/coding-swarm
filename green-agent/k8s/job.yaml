@@ -1,0 +1,97 @@
+# Green Agent - Project Manager Job Template
+#
+# This is a reference template. In production, jobs are created dynamically
+# by the Spawning Engine with proper environment variables.
+#
+# PREREQUISITES:
+# 1. Namespace: kubectl create namespace coding-swarm
+# 2. Secrets:
+#    kubectl create secret generic coding-swarm-secrets -n coding-swarm \
+#      --from-literal=CLAUDE_CODE_OAUTH_TOKEN='<token>' \
+#      --from-literal=GITHUB_TOKEN='<token>'
+#    kubectl create secret generic spawning-engine-secrets -n coding-swarm \
+#      --from-literal=SUPABASE_URL='<url>' \
+#      --from-literal=SUPABASE_KEY='<key>'
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: green-agent-test
+  namespace: coding-swarm
+  labels:
+    app.kubernetes.io/name: green-agent
+    app.kubernetes.io/component: project-manager
+    app.kubernetes.io/part-of: coding-swarm
+    agent-type: green
+spec:
+  ttlSecondsAfterFinished: 300  # Cleanup after 5 min
+  backoffLimit: 0                # No retry on failure
+  template:
+    metadata:
+      labels:
+        app: green-agent
+        agent-type: green
+    spec:
+      restartPolicy: Never
+
+      # Security Context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      containers:
+        - name: green-agent
+          image: tobiaswaggoner/green-agent:latest
+          imagePullPolicy: Always
+
+          # Security Context (container level)
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+
+          env:
+            # ===========================================
+            # Project Configuration
+            # ===========================================
+            - name: PROJECT_ID
+              value: "test-project"
+
+            - name: REPO_URL
+              value: "https://github.com/user/repo"
+
+            - name: BRANCH
+              value: "main"
+
+            - name: INTEGRATION_BRANCH
+              value: "feature/test"
+
+            # ===========================================
+            # Task Prompt (for initial run)
+            # ===========================================
+            - name: TASK_PROMPT
+              value: "Create a simple hello world application"
+
+            # TRIGGERED_BY_TASK_ID: Set when triggered by engine
+            # - name: TRIGGERED_BY_TASK_ID
+            #   value: "<uuid>"
+
+          envFrom:
+            # Claude and GitHub tokens
+            - secretRef:
+                name: coding-swarm-secrets
+
+            # Supabase access for Green Agent
+            - secretRef:
+                name: spawning-engine-secrets
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"

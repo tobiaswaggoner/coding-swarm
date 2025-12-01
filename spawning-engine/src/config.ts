@@ -37,6 +37,7 @@ export const config = {
   jobTimeoutMinutes: optionalInt("JOB_TIMEOUT_MINUTES", 30),
   jobNamespace: optional("JOB_NAMESPACE", "coding-swarm"),
   jobImage: optional("JOB_IMAGE", "tobiaswaggoner/coding-swarm-agent:latest"),
+  greenAgentImage: optional("GREEN_AGENT_IMAGE", "tobiaswaggoner/green-agent:latest"),
   maxParallelJobs: optionalInt("MAX_PARALLEL_JOBS", 10),
 
   // Logging

@@ -2,7 +2,7 @@
 set -e
 
 echo "=========================================="
-echo "  Coding Swarm - Red Agent (Worker)"
+echo "  Coding Swarm - Green Agent (Project Manager)"
 echo "=========================================="
 echo "  Build: ${BUILD_TIMESTAMP:-unknown}"
 echo "  Commit: ${GIT_COMMIT:-unknown}"
@@ -13,7 +13,7 @@ echo "=========================================="
 # ===========================================
 
 echo ""
-echo "[1/5] Security validation..."
+echo "[1/6] Security validation..."
 
 # CRITICAL: API-Key darf NICHT gesetzt sein (Kostenschutz)
 if [ -n "$ANTHROPIC_API_KEY" ]; then
@@ -28,7 +28,7 @@ fi
 # ===========================================
 
 echo ""
-echo "[2/5] Validating required secrets..."
+echo "[2/6] Validating required secrets..."
 
 MISSING_SECRETS=0
 
@@ -48,14 +48,40 @@ else
     echo "  [OK] GITHUB_TOKEN"
 fi
 
+# Supabase (REQUIRED for Green Agent)
+if [ -z "$SUPABASE_URL" ]; then
+    echo "  [MISSING] SUPABASE_URL - Required for database access"
+    MISSING_SECRETS=1
+else
+    echo "  [OK] SUPABASE_URL"
+fi
+
+if [ -z "$SUPABASE_KEY" ]; then
+    echo "  [MISSING] SUPABASE_KEY - Required for database access"
+    MISSING_SECRETS=1
+else
+    echo "  [OK] SUPABASE_KEY"
+fi
+
+# Project ID (REQUIRED for Green Agent)
+if [ -z "$PROJECT_ID" ]; then
+    echo "  [MISSING] PROJECT_ID - Required for project management"
+    MISSING_SECRETS=1
+else
+    echo "  [OK] PROJECT_ID: $PROJECT_ID"
+fi
+
 # Abort if secrets are missing
 if [ "$MISSING_SECRETS" -eq 1 ]; then
     echo ""
     echo "FATAL: Required secrets are missing. Aborting."
     echo ""
-    echo "Required secrets (deploy via kubectl create secret):"
+    echo "Required secrets:"
     echo "  - CLAUDE_CODE_OAUTH_TOKEN: Claude subscription OAuth token"
     echo "  - GITHUB_TOKEN: GitHub Personal Access Token with repo scope"
+    echo "  - SUPABASE_URL: Supabase project URL"
+    echo "  - SUPABASE_KEY: Supabase service key"
+    echo "  - PROJECT_ID: Project identifier"
     exit 1
 fi
 
@@ -64,7 +90,7 @@ fi
 # ===========================================
 
 echo ""
-echo "[3/5] Configuring credentials..."
+echo "[3/6] Configuring credentials..."
 
 # Ensure home directory permissions
 chmod 700 "$HOME"
@@ -99,21 +125,14 @@ git config --global url."https://x-access-token@github.com/".insteadOf "https://
 # Export GH_TOKEN for GitHub CLI (gh)
 export GH_TOKEN="$GITHUB_TOKEN"
 
-# Verify gh authentication
-if gh auth status &>/dev/null; then
-    echo "  [OK] GitHub CLI authenticated"
-else
-    echo "  [OK] GitHub CLI configured (token-based)"
-fi
-
 echo "  [OK] Git credentials configured (GIT_ASKPASS)"
 
 # ===========================================
-# REPOSITORY SETUP (OPTIONAL)
+# REPOSITORY SETUP
 # ===========================================
 
 echo ""
-echo "[4/5] Repository setup..."
+echo "[4/6] Repository setup..."
 
 if [ -n "$REPO_URL" ]; then
     echo "  Cloning: $REPO_URL"
@@ -125,7 +144,8 @@ if [ -n "$REPO_URL" ]; then
     # Checkout branch if specified
     if [ -n "$BRANCH" ]; then
         echo "  Checking out branch: $BRANCH"
-        git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
+        git fetch origin
+        git checkout -b "$BRANCH" "origin/$BRANCH" 2>/dev/null || git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH"
     fi
 
     echo "  [OK] Repository ready in /workspace"
@@ -136,34 +156,28 @@ else
 fi
 
 # ===========================================
-# CLAUDE CODE EXECUTION
+# ENVIRONMENT INFO
 # ===========================================
 
 echo ""
-echo "[5/5] Executing Claude Code..."
+echo "[5/6] Environment info..."
+echo "  Project ID: $PROJECT_ID"
+echo "  Branch: ${BRANCH:-main}"
+echo "  Integration Branch: ${INTEGRATION_BRANCH:-not set}"
+echo "  Triggered By Task: ${TRIGGERED_BY_TASK_ID:-initial}"
+
+# ===========================================
+# GREEN AGENT EXECUTION
+# ===========================================
+
+echo ""
+echo "[6/6] Starting Green Agent..."
 echo "=========================================="
 
-TASK_PROMPT="${TASK_PROMPT:-Antworte nur mit einem kurzen Satz: Wer bist du und welches Modell verwendest du?}"
-
-# Output Format: text (default), json, oder stream-json (für Echtzeit-Monitoring)
-OUTPUT_FORMAT="${OUTPUT_FORMAT:-stream-json}"
-
-echo "Prompt: $TASK_PROMPT"
-echo "Output Format: $OUTPUT_FORMAT"
-echo ""
-
-# stream-json benötigt --verbose Flag
-if [ "$OUTPUT_FORMAT" = "stream-json" ]; then
-    claude -p "$TASK_PROMPT" \
-        --dangerously-skip-permissions \
-        --output-format "$OUTPUT_FORMAT" \
-        --verbose
-else
-    claude -p "$TASK_PROMPT" \
-        --dangerously-skip-permissions \
-        --output-format "$OUTPUT_FORMAT"
-fi
+# Run the Green Agent TypeScript application
+cd /app
+node dist/index.js
 
 echo ""
 echo "=========================================="
-echo "Red Agent completed successfully!"
+echo "Green Agent completed!"

@@ -62,7 +62,12 @@ function setupShutdownHandlers() {
  * Entry point
  */
 async function main() {
-  log.info("Spawning Engine starting...");
+  log.info("==========================================");
+  log.info("  Spawning Engine");
+  log.info("==========================================");
+  log.info(`  Build: ${process.env.BUILD_TIMESTAMP || "unknown"}`);
+  log.info(`  Commit: ${process.env.GIT_COMMIT || "unknown"}`);
+  log.info("==========================================");
   log.info(`Poll interval: ${config.pollIntervalMs}ms`);
   log.info(`Job timeout: ${config.jobTimeoutMinutes} minutes`);
   log.info(`Max parallel jobs: ${config.maxParallelJobs}`);

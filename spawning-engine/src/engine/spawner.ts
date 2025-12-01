@@ -1,6 +1,6 @@
-import { TaskDatabase } from "../db/supabase.js";
+import { TaskDatabase, Project } from "../db/supabase.js";
 import { K8sClients } from "../k8s/client.js";
-import { createJob, generateJobName } from "../k8s/jobs.js";
+import { createJob, generateJobName, isProjectManager } from "../k8s/jobs.js";
 import { config } from "../config.js";
 import { log } from "../logger.js";
 
@@ -40,7 +40,7 @@ export async function spawnPendingTasks(
       continue;
     }
 
-    const jobName = generateJobName(task.id);
+    const jobName = generateJobName(task);
 
     // Claim task in DB first (atomic)
     const claimed = await db.claimTask(task.id, jobName);
@@ -49,11 +49,18 @@ export async function spawnPendingTasks(
       continue;
     }
 
+    // For project manager tasks, load project info
+    let project: Project | null = null;
+    if (isProjectManager(task) && task.project_id) {
+      project = await db.getProject(task.project_id);
+    }
+
     // Create K8s job
     try {
-      await createJob(k8s, task, jobName);
+      await createJob(k8s, task, jobName, project);
+      const agentType = isProjectManager(task) ? "green" : "red";
       log.info(
-        `Spawned job ${jobName} for task ${task.id} (addressee: ${task.addressee})`
+        `Spawned ${agentType} job ${jobName} for task ${task.id} (addressee: ${task.addressee})`
       );
       spawned++;
     } catch (err) {

@@ -53,10 +53,19 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
 - `spike-01-container/` - Red Agent Implementierung
   - `entrypoint.sh` - Agent-Lifecycle: Secrets validieren → Repo clonen → Claude CLI ausführen
   - `k8s/` - Kubernetes-Manifeste (job.yaml, namespace.yml)
-- `spawning-engine/` - Spawning Engine (TypeScript, aktueller Fokus)
+- `green-agent/` - Green Agent (Project Manager) Implementierung
+  - `src/` - TypeScript Source Code (index.ts, config.ts, db/, git/, plan/, tasks/, decisions/, prompts/)
+  - `k8s/` - Kubernetes-Manifeste (job.yaml Template)
+  - `Dockerfile` - Container-Image für K8s Deployment
+  - `entrypoint.sh` - Agent-Lifecycle: Secrets validieren → Repo clonen → Green Agent ausführen
+- `spawning-engine/` - Spawning Engine (TypeScript)
   - `src/` - TypeScript Source Code (index.ts, config.ts, db/, k8s/, engine/)
   - `k8s/` - Kubernetes-Manifeste (deployment.yaml, rbac.yaml)
   - `Dockerfile` - Container-Image für K8s Deployment
+- `prompts/` - Externalisierte Prompt-Templates
+  - `green/` - Green Agent Prompts (code.md, merge.md, review.md, fix.md, pr.md, validate.md, plan-generation.md)
+  - `README.md` - Dokumentation der Platzhalter und K8s ConfigMap-Nutzung
+- `migrations/` - SQL-Migrationen für Supabase
 - `scripts/` - Hilfs-Skripte (Test-Task erstellen, etc.)
 - `docs/` - Architektur-Dokumentation:
   - `initial_idea.md` - Übersicht und Vision
@@ -72,9 +81,13 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
 docker build -t tobiaswaggoner/coding-swarm-base:latest base-image/
 docker push tobiaswaggoner/coding-swarm-base:latest
 
-# Agent Image
+# Red Agent Image
 docker build -t tobiaswaggoner/coding-swarm-agent:latest spike-01-container/
 docker push tobiaswaggoner/coding-swarm-agent:latest
+
+# Green Agent Image (WICHTIG: vom Repository-Root bauen wegen prompts/)
+docker build -f green-agent/Dockerfile -t tobiaswaggoner/green-agent:latest .
+docker push tobiaswaggoner/green-agent:latest
 
 # Spawning Engine Image
 docker build -t tobiaswaggoner/spawning-engine:latest spawning-engine/
@@ -152,6 +165,7 @@ docker run \
 | `GIT_USER_EMAIL` | Nein | Committer E-Mail |
 | `GIT_USER_NAME` | Nein | Committer Name |
 | `OUTPUT_FORMAT` | Nein | `text`, `json`, oder `stream-json` (Standard: stream-json) |
+| `PROMPTS_DIR` | Nein | Pfad zu Prompt-Templates (Standard: /prompts/green, nur Green Agent) |
 
 ## Zentrale Design-Entscheidungen
 
@@ -166,3 +180,5 @@ docker run \
 - **Merge als separater Task** - Ermöglicht Review vor Integration, Konflikt-Isolation
 - **Task-Typen** - CODE, MERGE, REVIEW, FIX, PR, VALIDATE für klare Trennung der Verantwortlichkeiten
 - **PR via Red-Task** - Konsistentes Modell, Green führt selbst keine Git-Ops aus
+- **Externalisierte Prompts** - Alle Prompts in `prompts/` Verzeichnis, mountbar via K8s ConfigMap für Änderungen ohne Rebuild
+- **GIT_ASKPASS Auth** - SOTA Git-Authentifizierung ohne Token in URLs (verhindert Log-Leaks)
