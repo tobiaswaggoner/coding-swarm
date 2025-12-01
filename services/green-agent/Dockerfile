@@ -49,6 +49,10 @@ COPY --from=builder /build/package.json ./package.json
 COPY services/green-agent/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
+# Copy scripts for Claude to execute
+COPY services/green-agent/scripts /app/scripts
+RUN chmod +x /app/scripts/*.sh
+
 # Copy prompts (small, can be overridden via volume mount)
 COPY prompts/green /prompts/green
 

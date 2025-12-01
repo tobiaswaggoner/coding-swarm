@@ -29,6 +29,7 @@ export const config = {
   // Trigger context
   taskPrompt: optional("TASK_PROMPT", ""),
   triggeredByTaskId: optional("TRIGGERED_BY_TASK_ID", ""),
+  conversationId: optional("CONVERSATION_ID", ""),
 
   // Git config
   gitUserEmail: optional("GIT_USER_EMAIL", "ai-agent@coding-swarm.local"),

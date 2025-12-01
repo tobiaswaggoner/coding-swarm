@@ -71,6 +71,11 @@ function buildGreenAgentEnv(task: Task, project: Project | null): k8s.V1EnvVar[]
     env.push({ name: "TRIGGERED_BY_TASK_ID", value: task.triggered_by_task_id });
   }
 
+  // Conversation ID (for USER_MESSAGE tasks)
+  if (task.conversation_id) {
+    env.push({ name: "CONVERSATION_ID", value: task.conversation_id });
+  }
+
   return env;
 }
 

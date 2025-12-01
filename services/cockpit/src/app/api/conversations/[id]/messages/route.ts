@@ -111,6 +111,7 @@ Your response will be automatically saved as a message with role "green".`;
         branch: conv.projects.default_branch,
         project_id: conv.project_id,
         task_type: "USER_MESSAGE",
+        conversation_id: conversationId,  // Required for Green Agent to respond
         created_by: session.user.name || session.user.email || "cockpit-user",
       })
       .select()

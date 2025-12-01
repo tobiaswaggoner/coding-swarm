@@ -4,7 +4,7 @@ import { config } from "../config.js";
 /**
  * Task types for the swarm workflow
  */
-export type TaskType = "CODE" | "MERGE" | "REVIEW" | "FIX" | "PR" | "VALIDATE";
+export type TaskType = "CODE" | "MERGE" | "REVIEW" | "FIX" | "PR" | "VALIDATE" | "WORK" | "USER_MESSAGE";
 
 /**
  * Task record from database
@@ -25,6 +25,7 @@ export interface Task {
   project_id: string | null;
   task_type: TaskType | null;
   triggered_by_task_id: string | null;
+  conversation_id: string | null;
 }
 
 export interface TaskResult {
@@ -78,6 +79,7 @@ export interface CreateTaskInput {
   project_id?: string;
   task_type?: TaskType;
   triggered_by_task_id?: string;
+  conversation_id?: string;
 }
 
 /**
@@ -119,6 +121,7 @@ export class TaskDatabase {
         project_id: input.project_id || null,
         task_type: input.task_type || null,
         triggered_by_task_id: input.triggered_by_task_id || null,
+        conversation_id: input.conversation_id || null,
         status: "pending",
       })
       .select()

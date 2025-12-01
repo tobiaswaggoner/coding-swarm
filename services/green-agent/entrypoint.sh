@@ -6,6 +6,7 @@ echo "  Coding Swarm - Green Agent (Project Manager)"
 echo "=========================================="
 echo "  Build: ${BUILD_TIMESTAMP:-unknown}"
 echo "  Commit: ${GIT_COMMIT:-unknown}"
+echo "  Mode: Prompt-driven (Claude decides)"
 echo "=========================================="
 
 # ===========================================
@@ -13,7 +14,7 @@ echo "=========================================="
 # ===========================================
 
 echo ""
-echo "[1/6] Security validation..."
+echo "[1/7] Security validation..."
 
 # CRITICAL: API-Key darf NICHT gesetzt sein (Kostenschutz)
 if [ -n "$ANTHROPIC_API_KEY" ]; then
@@ -28,7 +29,7 @@ fi
 # ===========================================
 
 echo ""
-echo "[2/6] Validating required secrets..."
+echo "[2/7] Validating required secrets..."
 
 MISSING_SECRETS=0
 
@@ -90,7 +91,7 @@ fi
 # ===========================================
 
 echo ""
-echo "[3/6] Configuring credentials..."
+echo "[3/7] Configuring credentials..."
 
 # Ensure home directory permissions
 chmod 700 "$HOME"
@@ -132,7 +133,7 @@ echo "  [OK] Git credentials configured (GIT_ASKPASS)"
 # ===========================================
 
 echo ""
-echo "[4/6] Repository setup..."
+echo "[4/7] Repository setup..."
 
 if [ -n "$REPO_URL" ]; then
     echo "  Cloning: $REPO_URL"
@@ -160,23 +161,50 @@ fi
 # ===========================================
 
 echo ""
-echo "[5/6] Environment info..."
+echo "[5/7] Environment info..."
 echo "  Project ID: $PROJECT_ID"
 echo "  Branch: ${BRANCH:-main}"
 echo "  Integration Branch: ${INTEGRATION_BRANCH:-not set}"
 echo "  Triggered By Task: ${TRIGGERED_BY_TASK_ID:-initial}"
+echo "  Conversation ID: ${CONVERSATION_ID:-none}"
 
 # ===========================================
-# GREEN AGENT EXECUTION
+# GENERATE PROMPT
 # ===========================================
 
 echo ""
-echo "[6/6] Starting Green Agent..."
+echo "[6/7] Generating prompt..."
+
+# Generate the complete prompt for Claude Code
+PROMPT=$(node /app/dist/cli/generate-prompt.js)
+
+if [ -z "$PROMPT" ]; then
+    echo "FATAL: Failed to generate prompt"
+    exit 1
+fi
+
+echo "  [OK] Prompt generated ($(echo "$PROMPT" | wc -c) bytes)"
+
+# ===========================================
+# CLAUDE CODE EXECUTION
+# ===========================================
+
+echo ""
+echo "[7/7] Starting Claude Code..."
 echo "=========================================="
 
-# Run the Green Agent TypeScript application
-cd /app
-node dist/index.js
+# Make scripts executable
+chmod +x /app/scripts/*.sh 2>/dev/null || true
+
+# Run Claude Code with the generated prompt
+# --dangerously-skip-permissions: Required for autonomous execution
+# --output-format stream-json: For real-time monitoring via JSONL logs
+# --verbose: Required for stream-json output
+
+claude -p "$PROMPT" \
+    --dangerously-skip-permissions \
+    --output-format stream-json \
+    --verbose
 
 echo ""
 echo "=========================================="
