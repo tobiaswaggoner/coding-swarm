@@ -15,27 +15,31 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Blue Layer (Zukunft) - Executive UI (Next.js)               │
+│ Blue Layer (Geplant) - Executive UI (Next.js)              │
+│ services/blue-ui/                                           │
 │ User reicht Epics ein → Schreibt in PostgreSQL              │
 │ PR-Review → Änderungswünsche → Triggert Green               │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ Spawning Engine - Der EINZIGE persistente Prozess           │
+│ services/spawning-engine/                                   │
 │ Pollt tasks-Tabelle → Spawnt K8s Jobs → Trackt Status       │
 │ Triggert Green bei Task-Completion (Event-driven!)          │
 │ Verwaltet Concurrency via "addressee" (1 Job pro Addressee) │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ Green Layer (Nächster Schritt) - Project Manager            │
+│ Green Layer - Project Manager (Ephemerer K8s Job)           │
+│ services/green-agent/                                       │
 │ Event-driven: Wird bei Task-Completion getriggert           │
 │ Plant → Erstellt Task → Stirbt (kein Polling!)              │
 │ Führt selbst KEINE Git-Ops aus (alles via Red-Tasks)        │
 └─────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────┐
-│ Red Layer (Implementiert) - Worker Agent (Ephemerer K8s)    │
+│ Red Layer - Worker Agent (Ephemerer K8s Job)                │
+│ services/red-agent/                                         │
 │ Task-Typen: CODE, MERGE, REVIEW, FIX, PR, VALIDATE          │
 │ MERGED NIE direkt - Merge ist separater Task!               │
 └─────────────────────────────────────────────────────────────┘
@@ -49,68 +53,101 @@ Autonomous Coding Swarm - Ein KI-gestütztes Entwicklungssystem für parallele, 
 
 ## Verzeichnisstruktur
 
-- `base-image/` - Gemeinsames Docker-Base-Image (Node 25, Python 3.13, .NET 9, Claude CLI, gh CLI)
-- `spike-01-container/` - Red Agent Implementierung
-  - `entrypoint.sh` - Agent-Lifecycle: Secrets validieren → Repo clonen → Claude CLI ausführen
-  - `k8s/` - Kubernetes-Manifeste (job.yaml, namespace.yml)
-- `green-agent/` - Green Agent (Project Manager) Implementierung
-  - `src/` - TypeScript Source Code (index.ts, config.ts, db/, git/, plan/, tasks/, decisions/, prompts/)
-  - `k8s/` - Kubernetes-Manifeste (job.yaml Template)
-  - `Dockerfile` - Container-Image für K8s Deployment
-  - `entrypoint.sh` - Agent-Lifecycle: Secrets validieren → Repo clonen → Green Agent ausführen
-- `spawning-engine/` - Spawning Engine (TypeScript)
-  - `src/` - TypeScript Source Code (index.ts, config.ts, db/, k8s/, engine/)
-  - `k8s/` - Kubernetes-Manifeste (deployment.yaml, rbac.yaml)
-  - `Dockerfile` - Container-Image für K8s Deployment
-- `prompts/` - Externalisierte Prompt-Templates
-  - `green/` - Green Agent Prompts (code.md, merge.md, review.md, fix.md, pr.md, validate.md, plan-generation.md)
-  - `README.md` - Dokumentation der Platzhalter und K8s ConfigMap-Nutzung
-- `migrations/` - SQL-Migrationen für Supabase
-- `scripts/` - Hilfs-Skripte (Test-Task erstellen, etc.)
-- `docs/` - Architektur-Dokumentation:
-  - `initial_idea.md` - Übersicht und Vision
-  - `green-layer-design.md` - Technisches Design für Green Agent
-  - `scenario.md` - Detailliertes Durchspiel-Szenario (Snake Clone)
+```
+coding-swarm/
+├── services/                    # Alle Services
+│   ├── red-agent/              # Worker Agent (CODE, MERGE, REVIEW, etc.)
+│   │   ├── entrypoint.sh       # Agent-Lifecycle
+│   │   ├── Dockerfile
+│   │   └── k8s/                # Job-Manifeste
+│   ├── green-agent/            # Project Manager
+│   │   ├── src/                # TypeScript (index.ts, db/, git/, plan/, tasks/, decisions/, prompts/)
+│   │   ├── entrypoint.sh
+│   │   ├── Dockerfile
+│   │   └── k8s/
+│   ├── blue-ui/                # Executive UI (Next.js) - GEPLANT
+│   │   └── README.md
+│   └── spawning-engine/        # K8s Job Orchestrator
+│       ├── src/                # TypeScript (index.ts, db/, k8s/, engine/)
+│       ├── Dockerfile
+│       └── k8s/                # Deployment + RBAC
+│
+├── infrastructure/              # Infrastruktur-Komponenten
+│   ├── base-image/             # Docker Base Image (Node, Python, .NET, Claude CLI)
+│   │   └── Dockerfile
+│   └── migrations/             # SQL-Migrationen für Supabase
+│
+├── prompts/                     # Externalisierte Prompt-Templates
+│   ├── green/                  # Green Agent Prompts
+│   └── README.md               # Platzhalter-Dokumentation
+│
+├── scripts/                     # Build & Deploy Skripte
+│   ├── build-and-push.sh       # Alle Images bauen + pushen
+│   └── refresh-k8s.sh          # K8s Deployments aktualisieren
+│
+├── docs/                        # Architektur-Dokumentation
+│   ├── initial_idea.md
+│   ├── green-layer-design.md
+│   └── scenario.md
+│
+└── CLAUDE.md
+```
 
 ## Häufige Befehle
 
-### Docker Images bauen & pushen
+### Docker Images bauen & pushen (Empfohlen: Skript)
+
+```bash
+# Alle Images bauen und pushen
+./scripts/build-and-push.sh
+
+# Nur bauen, nicht pushen
+./scripts/build-and-push.sh --no-push
+
+# Mit Base Image (selten nötig)
+./scripts/build-and-push.sh --with-base
+```
+
+### Manuelles Bauen (falls nötig)
 
 ```bash
 # Base Image
-docker build -t tobiaswaggoner/coding-swarm-base:latest base-image/
-docker push tobiaswaggoner/coding-swarm-base:latest
+docker build -t tobiaswaggoner/coding-swarm-base:latest infrastructure/base-image/
 
-# Red Agent Image
-docker build -t tobiaswaggoner/coding-swarm-agent:latest spike-01-container/
-docker push tobiaswaggoner/coding-swarm-agent:latest
+# Red Agent
+docker build -t tobiaswaggoner/coding-swarm-agent:latest services/red-agent/
 
-# Green Agent Image (WICHTIG: vom Repository-Root bauen wegen prompts/)
-docker build -f green-agent/Dockerfile -t tobiaswaggoner/green-agent:latest .
-docker push tobiaswaggoner/green-agent:latest
+# Green Agent (vom Repository-Root wegen prompts/)
+docker build -f services/green-agent/Dockerfile -t tobiaswaggoner/green-agent:latest .
 
-# Spawning Engine Image
-docker build -t tobiaswaggoner/spawning-engine:latest spawning-engine/
-docker push tobiaswaggoner/spawning-engine:latest
+# Spawning Engine
+docker build -t tobiaswaggoner/spawning-engine:latest services/spawning-engine/
+```
+
+### K8s Deployment aktualisieren
+
+```bash
+# Deployments neu starten (zieht neue Images)
+./scripts/refresh-k8s.sh
 ```
 
 ### Spawning Engine lokal starten
 
 ```bash
-cd spawning-engine
+cd services/spawning-engine
 SUPABASE_URL="https://xxx.supabase.co" \
 SUPABASE_KEY="eyJ..." \
 LOG_LEVEL="debug" \
 npx tsx src/index.ts
 ```
 
-### Kubernetes Deployment
+### Kubernetes Initiales Setup
 
 ```bash
-# Initiales Setup - Namespace erstellen
+# Namespace erstellen
 kubectl create namespace coding-swarm
 
-# Secret für Worker Agents (Red Agents)
+# Secret für Worker Agents (Red + Green)
 kubectl create secret generic coding-swarm-secrets -n coding-swarm \
   --from-literal=CLAUDE_CODE_OAUTH_TOKEN='<token>' \
   --from-literal=GITHUB_TOKEN='<token>'
@@ -120,16 +157,9 @@ kubectl create secret generic spawning-engine-secrets -n coding-swarm \
   --from-literal=SUPABASE_URL='https://xxx.supabase.co' \
   --from-literal=SUPABASE_KEY='eyJ...'
 
-# RBAC für Spawning Engine
-kubectl apply -f spawning-engine/k8s/rbac.yaml
-
-# Spawning Engine deployen
-kubectl apply -f spawning-engine/k8s/deployment.yaml
-kubectl logs -f -n coding-swarm deployment/spawning-engine
-
-# Red Agent Job manuell starten (zum Testen)
-kubectl apply -f spike-01-container/k8s/job.yaml
-kubectl logs -f -n coding-swarm job/red-agent-spike
+# RBAC + Deployment
+kubectl apply -f services/spawning-engine/k8s/rbac.yaml
+kubectl apply -f services/spawning-engine/k8s/deployment.yaml
 ```
 
 ### Lokales Docker-Testing
@@ -182,3 +212,5 @@ docker run \
 - **PR via Red-Task** - Konsistentes Modell, Green führt selbst keine Git-Ops aus
 - **Externalisierte Prompts** - Alle Prompts in `prompts/` Verzeichnis, mountbar via K8s ConfigMap für Änderungen ohne Rebuild
 - **GIT_ASKPASS Auth** - SOTA Git-Authentifizierung ohne Token in URLs (verhindert Log-Leaks)
+- **Multi-Stage Docker Builds** - Schnellere Iteration durch optimierte Layer-Caching
+- **Service-orientierte Struktur** - Klare Trennung in `services/` und `infrastructure/`

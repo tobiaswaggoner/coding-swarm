@@ -86,27 +86,27 @@ build_image() {
 # Base Image (optional)
 if [ "$BUILD_BASE" = true ]; then
     build_image "Base Image" \
-        "base-image/Dockerfile" \
-        "base-image/" \
+        "infrastructure/base-image/Dockerfile" \
+        "infrastructure/base-image/" \
         "tobiaswaggoner/coding-swarm-base:latest"
 fi
 
 # Red Agent
 build_image "Red Agent" \
-    "spike-01-container/Dockerfile" \
-    "spike-01-container/" \
+    "services/red-agent/Dockerfile" \
+    "services/red-agent/" \
     "tobiaswaggoner/coding-swarm-agent:latest"
 
 # Green Agent (needs repo root context for prompts/)
 build_image "Green Agent" \
-    "green-agent/Dockerfile" \
+    "services/green-agent/Dockerfile" \
     "." \
     "tobiaswaggoner/green-agent:latest"
 
-# Spawning Engine (multi-stage build, no external tsc needed)
+# Spawning Engine (multi-stage build)
 build_image "Spawning Engine" \
-    "spawning-engine/Dockerfile" \
-    "spawning-engine/" \
+    "services/spawning-engine/Dockerfile" \
+    "services/spawning-engine/" \
     "tobiaswaggoner/spawning-engine:latest"
 
 # ===========================================
@@ -122,7 +122,7 @@ echo "  Commit: $GIT_COMMIT"
 echo ""
 echo "  Images:"
 if [ "$BUILD_BASE" = true ]; then
-    echo "    - tobiaswaggoner/coding-swarm-base:latest"
+    echo "    - tobiaswaggoner/coding-swarm-base:latest (Base)"
 fi
 echo "    - tobiaswaggoner/coding-swarm-agent:latest (Red)"
 echo "    - tobiaswaggoner/green-agent:latest (Green)"

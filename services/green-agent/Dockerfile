@@ -2,7 +2,7 @@
 # Multi-stage build for faster iteration cycles
 #
 # BUILD: Run from repository root with:
-#   docker build -f green-agent/Dockerfile -t tobiaswaggoner/green-agent:latest .
+#   docker build -f services/green-agent/Dockerfile -t tobiaswaggoner/green-agent:latest .
 #
 
 # ===========================================
@@ -13,14 +13,14 @@ FROM node:25-alpine AS builder
 WORKDIR /build
 
 # Copy package files first for better caching
-COPY green-agent/package*.json ./
+COPY services/green-agent/package*.json ./
 
 # Install ALL dependencies (including devDependencies for build)
 RUN npm ci
 
 # Copy source and build
-COPY green-agent/tsconfig.json ./
-COPY green-agent/src ./src
+COPY services/green-agent/tsconfig.json ./
+COPY services/green-agent/src ./src
 RUN npm run build
 
 # Remove devDependencies for smaller copy
@@ -46,7 +46,7 @@ COPY --from=builder /build/node_modules ./node_modules
 COPY --from=builder /build/package.json ./package.json
 
 # Copy entrypoint (small, changes rarely)
-COPY green-agent/entrypoint.sh /app/entrypoint.sh
+COPY services/green-agent/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Copy prompts (small, can be overridden via volume mount)
