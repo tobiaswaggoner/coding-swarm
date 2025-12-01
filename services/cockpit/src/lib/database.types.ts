@@ -66,6 +66,22 @@ export interface EngineLock {
   last_heartbeat: string | null;
 }
 
+export type CockpitUserStatus = "pending" | "authorized" | "blocked";
+
+export interface CockpitUser {
+  id: string;
+  github_id: string;
+  github_username: string | null;
+  email: string | null;
+  name: string | null;
+  avatar_url: string | null;
+  status: CockpitUserStatus;
+  authorized_by: string | null;
+  authorized_at: string | null;
+  created_at: string;
+  last_login: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -94,6 +110,15 @@ export interface Database {
         Row: EngineLock;
         Insert: EngineLock;
         Update: Partial<EngineLock>;
+      };
+      cockpit_users: {
+        Row: CockpitUser;
+        Insert: Omit<CockpitUser, "id" | "created_at" | "last_login"> & {
+          id?: string;
+          created_at?: string;
+          last_login?: string;
+        };
+        Update: Partial<CockpitUser>;
       };
     };
   };

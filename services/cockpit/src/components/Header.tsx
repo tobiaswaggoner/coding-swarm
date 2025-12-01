@@ -19,6 +19,14 @@ export async function Header() {
             >
               Dashboard
             </Link>
+            {session?.user?.status === "authorized" && (
+              <Link
+                href="/admin/users"
+                className="text-sm font-medium text-zinc-400 transition-colors hover:text-white"
+              >
+                Users
+              </Link>
+            )}
           </nav>
         </div>
 
